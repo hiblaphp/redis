@@ -6,6 +6,7 @@ namespace Hibla\Redis\Interfaces;
 
 use Hibla\Redis\Interfaces\Pipeline\ConnectionPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\HashesPipelineInterface;
+use Hibla\Redis\Interfaces\Pipeline\JsonPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\KeysPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\ListsPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\PubSubPipelineInterface;
@@ -27,7 +28,8 @@ interface PipelineInterface extends
     PubSubPipelineInterface,
     SetsPipelineInterface,
     SortedSetsPipelineInterface,
-    StringsPipelineInterface
+    StringsPipelineInterface,
+    JsonPipelineInterface
 {
     /**
      * Adds a custom or raw CommandInterface to the pipeline.

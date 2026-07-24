@@ -1,11 +1,10 @@
 services:
   redis:
-    image: redis:7
+    image: redis/redis-stack-server:latest
     environment:
-      REDIS_PASSWORD: root_password
+      REDIS_ARGS: "--requirepass root_password"
     ports:
       - "6379:6379"
-    command: redis-server --requirepass root_password
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "root_password", "ping"]
       interval: 5s
@@ -13,7 +12,7 @@ services:
       retries: 5
 
   redis_ssl:
-    image: redis:7
+    image: redis/redis-stack-server:latest
     ports:
       - "6380:6379"
     volumes:
@@ -30,6 +29,9 @@ services:
       chmod 644 /tmp/redis-ssl/server-cert.pem &&
       chmod 600 /tmp/redis-ssl/server-key.pem &&
       exec redis-server 
+      --loadmodule /opt/redis-stack/lib/rejson.so
+      --loadmodule /opt/redis-stack/lib/redisearch.so
+      --loadmodule /opt/redis-stack/lib/redisbloom.so
       --requirepass root_password
       --tls-port 6379 
       --port 0 

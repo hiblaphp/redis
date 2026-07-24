@@ -17,4 +17,5 @@ trait RedisCommandsTrait
     use SetsCommandsTrait;
     use SortedSetsCommandsTrait;
     use StringsCommandsTrait;
+    use JsonCommandsTrait;
 }
