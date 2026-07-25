@@ -170,6 +170,31 @@ describe('RedisClient - Strings & Numerics', function (): void {
         }
     });
 
+    it('can perform advanced string operations: MSET, SETNX, STRLEN, APPEND', function () {
+        $client = createIsolatedCleanClient();
+
+        try {
+            $msetResult = await($client->mset([
+                'multi_1' => 'val1',
+                'multi_2' => 'val2',
+            ]));
+            expect($msetResult)->toBe('OK');
+            expect(await($client->mget('multi_1', 'multi_2')))->toBe(['val1', 'val2']);
+
+            await($client->del('nx_key'));
+            expect(await($client->setnx('nx_key', 'initial')))->toBe(1);
+            expect(await($client->setnx('nx_key', 'override')))->toBe(0);
+            expect(await($client->get('nx_key')))->toBe('initial');
+
+            await($client->set('append_key', 'Hello'));
+            expect(await($client->append('append_key', ' World')))->toBe(11);
+            expect(await($client->get('append_key')))->toBe('Hello World');
+            expect(await($client->strlen('append_key')))->toBe(11);
+        } finally {
+            $client->close();
+        }
+    });
+
     it('can get multiple keys via MGET', function () {
         $client = createIsolatedCleanClient();
 
@@ -289,6 +314,53 @@ describe('RedisClient - Lists', function (): void {
             $elapsed = microtime(true) - $start;
 
             expect($result)->toBe(['my_list', 'popped_value'])
+                ->and($elapsed)->toBeGreaterThanOrEqual(0.09)
+            ;
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('can perform advanced list operations: LRANGE, LTRIM, LINDEX', function () {
+        $client = createIsolatedCleanClient();
+
+        try {
+            await($client->del('adv_list'));
+
+            await($client->rpush('adv_list', 'A', 'B', 'C', 'D', 'E'));
+
+            expect(await($client->lindex('adv_list', 0)))->toBe('A');
+            expect(await($client->lindex('adv_list', -1)))->toBe('E');
+            expect(await($client->lindex('adv_list', 10)))->toBeNull();
+
+            $range = await($client->lrange('adv_list', 1, 3));
+            expect($range)->toBe(['B', 'C', 'D']);
+
+            $trimResult = await($client->ltrim('adv_list', 1, -2));
+            expect($trimResult)->toBe('OK');
+            expect(await($client->lrange('adv_list', 0, -1)))->toBe(['B', 'C', 'D']);
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('can execute BRPOP and block the connection until an item arrives', function () {
+        $client = createIsolatedCleanClient();
+
+        try {
+            await($client->del('my_brpop_list'));
+
+            Loop::addTimer(0.1, function () {
+                $pusher = new RedisClient(getConfig());
+                $pusher->lpush('my_brpop_list', 'right_popped_value')->finally(fn () => $pusher->close());
+            });
+
+            $start = microtime(true);
+
+            $result = await($client->brpop('my_brpop_list', 0));
+            $elapsed = microtime(true) - $start;
+
+            expect($result)->toBe(['my_brpop_list', 'right_popped_value'])
                 ->and($elapsed)->toBeGreaterThanOrEqual(0.09)
             ;
         } finally {

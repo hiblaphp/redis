@@ -66,4 +66,46 @@ interface ListsCommandsInterface
      * @return PromiseInterface<array<int, string>|null> [key, value] or null on timeout.
      */
     public function blpop(string|array $keys, float|int $timeout = 0): PromiseInterface;
+
+    /**
+     * Returns the specified elements of the list stored at key.
+     *
+     * @param string $key List key.
+     * @param int $start Start offset (0-based, supports negative offsets).
+     * @param int $stop Stop offset (supports negative offsets).
+     *
+     * @return PromiseInterface<array<int, string>> Array of elements in the specified range.
+     */
+    public function lrange(string $key, int $start, int $stop): PromiseInterface;
+
+    /**
+     * Trims an existing list so that it will contain only the specified range of elements.
+     *
+     * @param string $key List key.
+     * @param int $start Start offset.
+     * @param int $stop Stop offset.
+     *
+     * @return PromiseInterface<string> Resolves to "OK" on success.
+     */
+    public function ltrim(string $key, int $start, int $stop): PromiseInterface;
+
+    /**
+     * Returns the element at the specified index in the list stored at key.
+     *
+     * @param string $key List key.
+     * @param int $index The zero-based index (supports negative offsets like -1 for the last element).
+     *
+     * @return PromiseInterface<string|null> The requested element, or null if out of range.
+     */
+    public function lindex(string $key, int $index): PromiseInterface;
+
+    /**
+     * Removes and returns the last element of a list, blocking the connection if empty.
+     *
+     * @param string|array<string> $keys Target key(s) to pop from.
+     * @param float|int $timeout Maximum time to block in seconds (0 = block indefinitely).
+     *
+     * @return PromiseInterface<array<int, string>|null> Resolves to `[key, value]`, or null on timeout.
+     */
+    public function brpop(string|array $keys, float|int $timeout = 0): PromiseInterface;
 }

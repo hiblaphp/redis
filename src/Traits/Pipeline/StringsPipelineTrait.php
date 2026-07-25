@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Hibla\Redis\Traits\Pipeline;
 
+use Hibla\Redis\Command\Strings\AppendCommand;
 use Hibla\Redis\Command\Strings\DecrCommand;
 use Hibla\Redis\Command\Strings\GetCommand;
 use Hibla\Redis\Command\Strings\IncrbyCommand;
 use Hibla\Redis\Command\Strings\IncrbyfloatCommand;
 use Hibla\Redis\Command\Strings\IncrCommand;
 use Hibla\Redis\Command\Strings\MgetCommand;
+use Hibla\Redis\Command\Strings\MsetCommand;
 use Hibla\Redis\Command\Strings\SetCommand;
 use Hibla\Redis\Command\Strings\SetexCommand;
+use Hibla\Redis\Command\Strings\SetnxCommand;
+use Hibla\Redis\Command\Strings\StrlenCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
 trait StringsPipelineTrait
@@ -124,5 +128,68 @@ trait StringsPipelineTrait
     public function setex(string $key, int $seconds, mixed $value): self
     {
         return $this->executeCommand(new SetexCommand([$key, $seconds, $value]));
+    }
+
+    /**
+     * Adds an MSET command to the pipeline.
+     *
+     * @param array<string, mixed> $keyValuePairs Associative array of `['key' => 'value']`.
+     *
+     * @return self For method chaining.
+     */
+    public function mset(array $keyValuePairs): self
+    {
+        $args = [];
+
+        if (array_is_list($keyValuePairs)) {
+            foreach ($keyValuePairs as $item) {
+                $args[] = $item;
+            }
+        } else {
+            foreach ($keyValuePairs as $key => $value) {
+                $args[] = (string) $key;
+                $args[] = $value;
+            }
+        }
+
+        return $this->executeCommand(new MsetCommand($args));
+    }
+
+    /**
+     * Adds a SETNX command to the pipeline.
+     *
+     * @param string $key Key to set.
+     * @param mixed $value Value to store.
+     *
+     * @return self For method chaining.
+     */
+    public function setnx(string $key, mixed $value): self
+    {
+        return $this->executeCommand(new SetnxCommand([$key, $value]));
+    }
+
+    /**
+     * Adds a STRLEN command to the pipeline.
+     *
+     * @param string $key Target key.
+     *
+     * @return self For method chaining.
+     */
+    public function strlen(string $key): self
+    {
+        return $this->executeCommand(new StrlenCommand([$key]));
+    }
+
+    /**
+     * Adds an APPEND command to the pipeline.
+     *
+     * @param string $key Target key.
+     * @param mixed $value Value to append.
+     *
+     * @return self For method chaining.
+     */
+    public function append(string $key, mixed $value): self
+    {
+        return $this->executeCommand(new AppendCommand([$key, $value]));
     }
 }

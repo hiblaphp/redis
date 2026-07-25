@@ -82,4 +82,42 @@ interface StringsPipelineInterface
      * @return self For method chaining.
      */
     public function setex(string $key, int $seconds, mixed $value): self;
+
+    /**
+     * Adds an MSET command to the pipeline.
+     *
+     * @param array<string, mixed> $keyValuePairs Associative array of `['key' => 'value']`.
+     *
+     * @return self For method chaining.
+     */
+    public function mset(array $keyValuePairs): self;
+
+    /**
+     * Adds a SETNX command to the pipeline.
+     *
+     * @param string $key Key to set.
+     * @param mixed $value Value to store.
+     *
+     * @return self For method chaining.
+     */
+    public function setnx(string $key, mixed $value): self;
+
+    /**
+     * Adds a STRLEN command to the pipeline.
+     *
+     * @param string $key Target key.
+     *
+     * @return self For method chaining.
+     */
+    public function strlen(string $key): self;
+
+    /**
+     * Adds an APPEND command to the pipeline.
+     *
+     * @param string $key Target key.
+     * @param mixed $value Value to append.
+     *
+     * @return self For method chaining.
+     */
+    public function append(string $key, mixed $value): self;
 }

@@ -6,9 +6,13 @@ namespace Hibla\Redis\Traits\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Redis\Command\Lists\BlpopCommand;
+use Hibla\Redis\Command\Lists\BrpopCommand;
+use Hibla\Redis\Command\Lists\LindexCommand;
 use Hibla\Redis\Command\Lists\LlenCommand;
 use Hibla\Redis\Command\Lists\LpopCommand;
 use Hibla\Redis\Command\Lists\LpushCommand;
+use Hibla\Redis\Command\Lists\LrangeCommand;
+use Hibla\Redis\Command\Lists\LtrimCommand;
 use Hibla\Redis\Command\Lists\RpopCommand;
 use Hibla\Redis\Command\Lists\RpushCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
@@ -106,5 +110,62 @@ trait ListsCommandsTrait
         $args[] = $timeout;
 
         return $this->executeCommand(new BlpopCommand($args));
+    }
+
+    /**
+     * Returns the specified elements of the list stored at key.
+     *
+     * @param string $key List key.
+     * @param int $start Start offset (0-based, supports negative offsets).
+     * @param int $stop Stop offset (supports negative offsets).
+     *
+     * @return PromiseInterface<array<int, string>> Array of elements in the specified range.
+     */
+    public function lrange(string $key, int $start, int $stop): PromiseInterface
+    {
+        return $this->executeCommand(new LrangeCommand([$key, $start, $stop]));
+    }
+
+    /**
+     * Trims an existing list so that it will contain only the specified range of elements.
+     *
+     * @param string $key List key.
+     * @param int $start Start offset.
+     * @param int $stop Stop offset.
+     *
+     * @return PromiseInterface<string> Resolves to "OK" on success.
+     */
+    public function ltrim(string $key, int $start, int $stop): PromiseInterface
+    {
+        return $this->executeCommand(new LtrimCommand([$key, $start, $stop]));
+    }
+
+    /**
+     * Returns the element at the specified index in the list stored at key.
+     *
+     * @param string $key List key.
+     * @param int $index The zero-based index (supports negative offsets like -1 for the last element).
+     *
+     * @return PromiseInterface<string|null> The requested element, or null if out of range.
+     */
+    public function lindex(string $key, int $index): PromiseInterface
+    {
+        return $this->executeCommand(new LindexCommand([$key, $index]));
+    }
+
+    /**
+     * Removes and returns the last element of a list, blocking the connection if empty.
+     *
+     * @param string|array<string> $keys Target key(s) to pop from.
+     * @param float|int $timeout Maximum time to block in seconds (0 = block indefinitely).
+     *
+     * @return PromiseInterface<array<int, string>|null> Resolves to `[key, value]`, or null on timeout.
+     */
+    public function brpop(string|array $keys, float|int $timeout = 0): PromiseInterface
+    {
+        $args = \is_array($keys) ? $keys : [$keys];
+        $args[] = $timeout;
+
+        return $this->executeCommand(new BrpopCommand($args));
     }
 }
