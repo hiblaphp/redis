@@ -27,16 +27,37 @@ trait GeoPipelineTrait
      * Adds a GEOADD command to the pipeline.
      *
      * @param string $key Geospatial index key.
-     * @param float $longitude Longitude coordinate.
-     * @param float $latitude Latitude coordinate.
-     * @param string $member Member name.
-     * @param mixed ...$additionalLongitudeLatitudeMembers Additional triplet(s) of [longitude, latitude, member].
+     * @param array<string, array{0: float, 1: float}|array{longitude: float, latitude: float}> $locations Associative array of `['member' => [longitude, latitude]]`.
      *
      * @return self For method chaining.
      */
-    public function geoadd(string $key, float $longitude, float $latitude, string $member, mixed ...$additionalLongitudeLatitudeMembers): self
+    public function geoadd(string $key, array $locations): self
     {
-        return $this->executeCommand(new GeoaddCommand([$key, $longitude, $latitude, $member, ...$additionalLongitudeLatitudeMembers]));
+        $args = [$key];
+
+        if (array_is_list($locations)) {
+            foreach ($locations as $item) {
+                if (\is_array($item)) {
+                    $args[] = $item[0] ?? 0.0;
+                    $args[] = $item[1] ?? 0.0;
+                    $args[] = $item[2] ?? '';
+                } else {
+                    $args[] = $item;
+                }
+            }
+        } else {
+            foreach ($locations as $member => $coords) {
+                if (\is_array($coords)) {
+                    $longitude = $coords[0] ?? $coords['longitude'] ?? 0.0;
+                    $latitude = $coords[1] ?? $coords['latitude'] ?? 0.0;
+                    $args[] = $longitude;
+                    $args[] = $latitude;
+                    $args[] = (string) $member;
+                }
+            }
+        }
+
+        return $this->executeCommand(new GeoaddCommand($args));
     }
 
     /**

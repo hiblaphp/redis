@@ -12,14 +12,11 @@ interface GeoCommandsInterface
      * Adds the specified geospatial items to the specified key.
      *
      * @param string $key Geospatial index key.
-     * @param float $longitude Longitude coordinate.
-     * @param float $latitude Latitude coordinate.
-     * @param string $member Member name.
-     * @param mixed ...$additionalLongitudeLatitudeMembers Additional triplet(s) of [longitude, latitude, member].
+     * @param array<string, array{0: float, 1: float}|array{longitude: float, latitude: float}> $locations Associative array of `['member' => [longitude, latitude]]`.
      *
      * @return PromiseInterface<int> Number of elements added.
      */
-    public function geoadd(string $key, float $longitude, float $latitude, string $member, mixed ...$additionalLongitudeLatitudeMembers): PromiseInterface;
+    public function geoadd(string $key, array $locations): PromiseInterface;
 
     /**
      * Returns the distance between two members in a geospatial index.

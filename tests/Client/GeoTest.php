@@ -15,7 +15,10 @@ describe('RedisClient - Geo Commands', function (): void {
         try {
             $key = 'geo_cities_' . uniqid();
 
-            $added = await($client->geoadd($key, 13.361389, 38.115556, 'Palermo', 15.087269, 37.502669, 'Catania'));
+            $added = await($client->geoadd($key, [
+                'Palermo' => [13.361389, 38.115556],
+                'Catania' => [15.087269, 37.502669],
+            ]));
             expect($added)->toBe(2);
 
             $distKm = await($client->geodist($key, 'Palermo', 'Catania', 'km'));
@@ -46,7 +49,10 @@ describe('RedisClient - Geo Commands', function (): void {
         try {
             $key = 'geo_search_' . uniqid();
 
-            await($client->geoadd($key, 13.361389, 38.115556, 'Palermo', 15.087269, 37.502669, 'Catania'));
+            await($client->geoadd($key, [
+                'Palermo' => [13.361389, 38.115556],
+                'Catania' => [15.087269, 37.502669],
+            ]));
 
             $radiusResults = await($client->georadius($key, 15.0, 37.5, 200, 'km'));
             expect($radiusResults)->toContain('Palermo')->toContain('Catania');
@@ -65,7 +71,7 @@ describe('RedisClient - Geo Commands', function (): void {
             $key = 'geo_pipe_' . uniqid();
 
             $results = await($client->pipeline(function (PipelineInterface $pipe) use ($key) {
-                $pipe->geoadd($key, 13.361389, 38.115556, 'Palermo')
+                $pipe->geoadd($key, ['Palermo' => [13.361389, 38.115556]])
                     ->geodist($key, 'Palermo', 'Palermo', 'm')
                     ->geopos($key, 'Palermo')
                 ;

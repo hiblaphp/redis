@@ -10,14 +10,11 @@ interface GeoPipelineInterface
      * Adds a GEOADD command to the pipeline.
      *
      * @param string $key Geospatial index key.
-     * @param float $longitude Longitude coordinate.
-     * @param float $latitude Latitude coordinate.
-     * @param string $member Member name.
-     * @param mixed ...$additionalLongitudeLatitudeMembers Additional triplet(s) of [longitude, latitude, member].
+     * @param array<string, array{0: float, 1: float}|array{longitude: float, latitude: float}> $locations Associative array of `['member' => [longitude, latitude]]`.
      *
      * @return self For method chaining.
      */
-    public function geoadd(string $key, float $longitude, float $latitude, string $member, mixed ...$additionalLongitudeLatitudeMembers): self;
+    public function geoadd(string $key, array $locations): self;
 
     /**
      * Adds a GEODIST command to the pipeline.
