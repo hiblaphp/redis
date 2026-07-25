@@ -40,13 +40,26 @@ trait HashesPipelineTrait
      * Adds an HSET command to the pipeline.
      *
      * @param string $key The hash key.
-     * @param string ...$fieldsAndValues Variadic field name and value pairs.
+     * @param array<string, mixed> $fieldsAndValues Associative array of field/value pairs.
      *
      * @return self For method chaining.
      */
-    public function hset(string $key, string ...$fieldsAndValues): self
+    public function hset(string $key, array $fieldsAndValues): self
     {
-        return $this->executeCommand(new HsetCommand([$key, ...$fieldsAndValues]));
+        $args = [$key];
+
+        if (array_is_list($fieldsAndValues)) {
+            foreach ($fieldsAndValues as $item) {
+                $args[] = $item;
+            }
+        } else {
+            foreach ($fieldsAndValues as $field => $value) {
+                $args[] = (string) $field;
+                $args[] = $value;
+            }
+        }
+
+        return $this->executeCommand(new HsetCommand($args));
     }
 
     /**

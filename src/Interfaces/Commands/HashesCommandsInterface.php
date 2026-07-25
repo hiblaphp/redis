@@ -22,11 +22,11 @@ interface HashesCommandsInterface
      * Sets specified fields to values in hash stored at key.
      *
      * @param string $key Hash key.
-     * @param string ...$fieldsAndValues Variadic field/value pairs.
+     * @param array<string, mixed> $fieldsAndValues Associative array of field/value pairs.
      *
      * @return PromiseInterface<int> Number of fields added.
      */
-    public function hset(string $key, string ...$fieldsAndValues): PromiseInterface;
+    public function hset(string $key, array $fieldsAndValues): PromiseInterface;
 
     /**
      * Retrieves all fields and values of hash stored at key.

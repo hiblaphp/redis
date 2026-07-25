@@ -41,13 +41,26 @@ trait HashesCommandsTrait
      * Sets specified fields to values in hash stored at key.
      *
      * @param string $key Hash key.
-     * @param string ...$fieldsAndValues Variadic field/value pairs.
+     * @param array<string, mixed> $fieldsAndValues Associative array of field/value pairs.
      *
      * @return PromiseInterface<int> Number of fields added.
      */
-    public function hset(string $key, string ...$fieldsAndValues): PromiseInterface
+    public function hset(string $key, array $fieldsAndValues): PromiseInterface
     {
-        return $this->executeCommand(new HsetCommand([$key, ...$fieldsAndValues]));
+        $args = [$key];
+
+        if (array_is_list($fieldsAndValues)) {
+            foreach ($fieldsAndValues as $item) {
+                $args[] = $item;
+            }
+        } else {
+            foreach ($fieldsAndValues as $field => $value) {
+                $args[] = (string) $field;
+                $args[] = $value;
+            }
+        }
+
+        return $this->executeCommand(new HsetCommand($args));
     }
 
     /**

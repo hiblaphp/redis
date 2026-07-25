@@ -20,11 +20,11 @@ interface HashesPipelineInterface
      * Adds an HSET command to the pipeline.
      *
      * @param string $key The hash key.
-     * @param string ...$fieldsAndValues Variadic field name and value pairs.
+     * @param array<string, mixed> $fieldsAndValues Associative array of field/value pairs.
      *
      * @return self For method chaining.
      */
-    public function hset(string $key, string ...$fieldsAndValues): self;
+    public function hset(string $key, array $fieldsAndValues): self;
 
     /**
      * Adds an HGETALL command to the pipeline.
