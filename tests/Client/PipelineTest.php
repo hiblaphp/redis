@@ -99,7 +99,7 @@ describe('RedisClient - Explicit Pipelining', function (): void {
             await($client->del('p_hash'));
 
             $results = await($client->pipeline(function (PipelineInterface $pipe) {
-                $pipe->hset('p_hash', 'f1', 'v1', 'f2', 'v2')
+                $pipe->hset('p_hash', ['f1' => 'v1', 'f2' => 'v2'])
                      ->hget('p_hash', 'f1')
                      ->hmget('p_hash', 'f1', 'missing')
                      ->hexists('p_hash', 'f2')
@@ -188,7 +188,7 @@ describe('RedisClient - Explicit Pipelining', function (): void {
             await($client->del('p_zset'));
 
             $results = await($client->pipeline(function (PipelineInterface $pipe) {
-                $pipe->zadd('p_zset', 10, 'p1', 20, 'p2')
+                $pipe->zadd('p_zset', ['p1' => 10, 'p2' => 20])
                      ->zscore('p_zset', 'p1')
                      ->zrange('p_zset', 0, -1)
                      ->zrem('p_zset', 'p2')

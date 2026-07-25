@@ -140,7 +140,7 @@ describe('RedisClient - Key Management', function (): void {
 
         try {
             await($client->set('str_k', 'v'));
-            await($client->hset('hash_k', 'f', 'v'));
+            await($client->hset('hash_k', ['f' => 'v']));
 
             expect(await($client->type('str_k')))->toBe('string')
                 ->and(await($client->type('hash_k')))->toBe('hash')
@@ -219,7 +219,7 @@ describe('RedisClient - Hashes', function (): void {
         $client = createIsolatedCleanClient();
 
         try {
-            $added = await($client->hset('user:100', 'name', 'Alice', 'role', 'admin'));
+            $added = await($client->hset('user:100', ['name' => 'Alice', 'role' => 'admin']));
             expect($added)->toBe(2);
 
             expect(await($client->hget('user:100', 'name')))->toBe('Alice')
@@ -328,7 +328,7 @@ describe('RedisClient - Sorted Sets (ZSets)', function (): void {
         $client = createIsolatedCleanClient();
 
         try {
-            expect(await($client->zadd('leaderboard', 100, 'player1', 250, 'player2')))->toBe(2);
+            expect(await($client->zadd('leaderboard', ['player1' => 100, 'player2' => 250])))->toBe(2);
 
             expect(await($client->zscore('leaderboard', 'player1')))->toBe('100')
                 ->and(await($client->zscore('leaderboard', 'missing')))->toBeNull()
