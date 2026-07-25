@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces;
 
 use Hibla\Redis\Interfaces\Commands\ConnectionCommandsInterface;
+use Hibla\Redis\Interfaces\Commands\GeoCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\HashesCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\JsonCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\KeysCommandsInterface;
@@ -26,6 +27,7 @@ interface RedisCommandsInterface extends
     SetsCommandsInterface,
     SortedSetsCommandsInterface,
     StringsCommandsInterface,
-    JsonCommandsInterface
+    JsonCommandsInterface,
+    GeoCommandsInterface
 {
 }

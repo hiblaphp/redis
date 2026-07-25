@@ -7,6 +7,7 @@ namespace Hibla\Redis\Internals;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\PipelineInterface;
 use Hibla\Redis\Traits\Pipeline\ConnectionPipelineTrait;
+use Hibla\Redis\Traits\Pipeline\GeoPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\HashesPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\JsonPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\KeysPipelineTrait;
@@ -31,6 +32,7 @@ final class Pipeline implements PipelineInterface
     use SortedSetsPipelineTrait;
     use StringsPipelineTrait;
     use JsonPipelineTrait;
+    use GeoPipelineTrait;
 
     /**
      * @internal

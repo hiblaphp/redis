@@ -18,4 +18,5 @@ trait RedisCommandsTrait
     use SortedSetsCommandsTrait;
     use StringsCommandsTrait;
     use JsonCommandsTrait;
+    use GeoCommandsTrait;
 }
