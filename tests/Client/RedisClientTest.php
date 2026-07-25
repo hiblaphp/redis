@@ -323,19 +323,19 @@ describe('RedisClient - Hashes', function (): void {
             await($client->hset('adv_hash', ['clicks' => '10', 'rating' => '4.5', 'name' => 'Product A']));
 
             expect(await($client->hincrby('adv_hash', 'clicks', 5)))->toBe(15);
-
             expect((float) await($client->hincrbyfloat('adv_hash', 'rating', 0.2)))->toBe(4.7);
-
             expect(await($client->hlen('adv_hash')))->toBe(3);
 
             $keys = await($client->hkeys('adv_hash'));
             $vals = await($client->hvals('adv_hash'));
 
             sort($keys);
-            sort($vals);
 
             expect($keys)->toBe(['clicks', 'name', 'rating'])
-                ->and($vals)->toBe(['15', '4.7', 'Product A'])
+                ->and($vals)->toHaveCount(3)
+                ->and($vals)->toContain('15')
+                ->and($vals)->toContain('4.7')
+                ->and($vals)->toContain('Product A')
             ;
         } finally {
             $client->close();
@@ -451,6 +451,34 @@ describe('RedisClient - Sets', function (): void {
             expect(await($client->srem('tags', 'async')))->toBe(1)
                 ->and(await($client->sismember('tags', 'async')))->toBe(0)
             ;
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('can perform advanced set operations: SCARD, SPOP, SINTER, SUNION, SDIFF', function () {
+        $client = createIsolatedCleanClient();
+
+        try {
+            await($client->sadd('set1', 'A', 'B', 'C'));
+            await($client->sadd('set2', 'B', 'C', 'D'));
+
+            expect(await($client->scard('set1')))->toBe(3);
+
+            $inter = await($client->sinter('set1', 'set2'));
+            sort($inter);
+            expect($inter)->toBe(['B', 'C']);
+
+            $union = await($client->sunion('set1', 'set2'));
+            sort($union);
+            expect($union)->toBe(['A', 'B', 'C', 'D']);
+
+            $diff = await($client->sdiff('set1', 'set2'));
+            expect($diff)->toBe(['A']);
+
+            $popped = await($client->spop('set1'));
+            expect($popped)->toBeString();
+            expect(await($client->scard('set1')))->toBe(2);
         } finally {
             $client->close();
         }

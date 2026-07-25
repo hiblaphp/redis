@@ -44,4 +44,53 @@ interface SetsPipelineInterface
      * @return self For method chaining.
      */
     public function sismember(string $key, mixed $member): self;
+
+    /**
+     * Adds an SCARD command to the pipeline.
+     *
+     * @param string $key Set key.
+     *
+     * @return self For method chaining.
+     */
+    public function scard(string $key): self;
+
+    /**
+     * Adds an SPOP command to the pipeline.
+     *
+     * @param string $key Set key.
+     * @param int|null $count Number of members to pop.
+     *
+     * @return self For method chaining.
+     */
+    public function spop(string $key, ?int $count = null): self;
+
+    /**
+     * Adds an SINTER command to the pipeline.
+     *
+     * @param string|array<int, string> $keys First key or array of keys.
+     * @param string ...$moreKeys Additional keys to intersect.
+     *
+     * @return self For method chaining.
+     */
+    public function sinter(string|array $keys, string ...$moreKeys): self;
+
+    /**
+     * Adds an SUNION command to the pipeline.
+     *
+     * @param string|array<int, string> $keys First key or array of keys.
+     * @param string ...$moreKeys Additional keys to union.
+     *
+     * @return self For method chaining.
+     */
+    public function sunion(string|array $keys, string ...$moreKeys): self;
+
+    /**
+     * Adds an SDIFF command to the pipeline.
+     *
+     * @param string|array<int, string> $keys First key or array of keys.
+     * @param string ...$moreKeys Additional keys to diff against.
+     *
+     * @return self For method chaining.
+     */
+    public function sdiff(string|array $keys, string ...$moreKeys): self;
 }

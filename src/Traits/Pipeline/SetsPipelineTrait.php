@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Hibla\Redis\Traits\Pipeline;
 
 use Hibla\Redis\Command\Sets\SaddCommand;
+use Hibla\Redis\Command\Sets\ScardCommand;
+use Hibla\Redis\Command\Sets\SdiffCommand;
+use Hibla\Redis\Command\Sets\SinterCommand;
 use Hibla\Redis\Command\Sets\SismemberCommand;
 use Hibla\Redis\Command\Sets\SmembersCommand;
+use Hibla\Redis\Command\Sets\SpopCommand;
 use Hibla\Redis\Command\Sets\SremCommand;
+use Hibla\Redis\Command\Sets\SunionCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
 trait SetsPipelineTrait
@@ -70,5 +75,86 @@ trait SetsPipelineTrait
     public function sismember(string $key, mixed $member): self
     {
         return $this->executeCommand(new SismemberCommand([$key, $member]));
+    }
+
+    /**
+     * Adds an SCARD command to the pipeline.
+     *
+     * @param string $key Set key.
+     *
+     * @return self For method chaining.
+     */
+    public function scard(string $key): self
+    {
+        return $this->executeCommand(new ScardCommand([$key]));
+    }
+
+    /**
+     * Adds an SPOP command to the pipeline.
+     *
+     * @param string $key Set key.
+     * @param int|null $count Number of members to pop.
+     *
+     * @return self For method chaining.
+     */
+    public function spop(string $key, ?int $count = null): self
+    {
+        $args = $count === null ? [$key] : [$key, $count];
+
+        return $this->executeCommand(new SpopCommand($args));
+    }
+
+    /**
+     * Adds an SINTER command to the pipeline.
+     *
+     * @param string|array<int, string> $keys First key or array of keys.
+     * @param string ...$moreKeys Additional keys to intersect.
+     *
+     * @return self For method chaining.
+     */
+    public function sinter(string|array $keys, string ...$moreKeys): self
+    {
+        $args = \is_array($keys) ? $keys : [$keys];
+        foreach ($moreKeys as $key) {
+            $args[] = $key;
+        }
+
+        return $this->executeCommand(new SinterCommand($args));
+    }
+
+    /**
+     * Adds an SUNION command to the pipeline.
+     *
+     * @param string|array<int, string> $keys First key or array of keys.
+     * @param string ...$moreKeys Additional keys to union.
+     *
+     * @return self For method chaining.
+     */
+    public function sunion(string|array $keys, string ...$moreKeys): self
+    {
+        $args = \is_array($keys) ? $keys : [$keys];
+        foreach ($moreKeys as $key) {
+            $args[] = $key;
+        }
+
+        return $this->executeCommand(new SunionCommand($args));
+    }
+
+    /**
+     * Adds an SDIFF command to the pipeline.
+     *
+     * @param string|array<int, string> $keys First key or array of keys.
+     * @param string ...$moreKeys Additional keys to diff against.
+     *
+     * @return self For method chaining.
+     */
+    public function sdiff(string|array $keys, string ...$moreKeys): self
+    {
+        $args = \is_array($keys) ? $keys : [$keys];
+        foreach ($moreKeys as $key) {
+            $args[] = $key;
+        }
+
+        return $this->executeCommand(new SdiffCommand($args));
     }
 }
