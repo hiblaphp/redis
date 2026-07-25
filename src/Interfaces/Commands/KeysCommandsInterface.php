@@ -62,4 +62,45 @@ interface KeysCommandsInterface
      * @return PromiseInterface<int> Resolves to number of unlinked keys.
      */
     public function unlink(string ...$keys): PromiseInterface;
+
+    /**
+     * Iterates the set of keys in the currently selected Redis database.
+     *
+     * @param string|int $cursor The cursor to start the scan from (use '0' for a new scan).
+     * @param string|null $match Glob-style pattern to match keys against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     * @param string|null $type Filter keys by type (e.g., 'string', 'hash', 'list').
+     *
+     * @return PromiseInterface<array{0: string, 1: array<int, string>}> Resolves to `[next_cursor, [key1, key2, ...]]`.
+     */
+    public function scan(string|int $cursor = '0', ?string $match = null, ?int $count = null, ?string $type = null): PromiseInterface;
+
+    /**
+     * Renames a key. Overwrites the destination key if it already exists.
+     *
+     * @param string $key The key to rename.
+     * @param string $newKey The new name for the key.
+     *
+     * @return PromiseInterface<string> Resolves to "OK" on success.
+     */
+    public function rename(string $key, string $newKey): PromiseInterface;
+
+    /**
+     * Renames a key, only if the new key does not exist.
+     *
+     * @param string $key The key to rename.
+     * @param string $newKey The new name for the key.
+     *
+     * @return PromiseInterface<int> Resolves to 1 if key was renamed, 0 if new key already existed.
+     */
+    public function renamenx(string $key, string $newKey): PromiseInterface;
+
+    /**
+     * Removes the existing timeout on a key, turning the key from volatile to persistent.
+     *
+     * @param string $key Target key.
+     *
+     * @return PromiseInterface<int> Resolves to 1 if timeout was removed, 0 if key does not exist or has no associated timeout.
+     */
+    public function persist(string $key): PromiseInterface;
 }

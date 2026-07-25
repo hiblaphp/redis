@@ -150,6 +150,43 @@ describe('RedisClient - Key Management', function (): void {
             $client->close();
         }
     });
+
+    it('can perform advanced key operations: SCAN, RENAME, RENAMENX, PERSIST', function () {
+        $client = createIsolatedCleanClient();
+
+        try {
+            await($client->set('old_key', 'val'));
+            expect(await($client->rename('old_key', 'new_key')))->toBe('OK');
+            expect(await($client->get('new_key')))->toBe('val');
+
+            await($client->set('existing_key', 'existing'));
+            expect(await($client->renamenx('new_key', 'existing_key')))->toBe(0);
+            expect(await($client->renamenx('new_key', 'fresh_key')))->toBe(1);
+
+            await($client->setex('volatile_key', 60, 'val'));
+            expect(await($client->ttl('volatile_key')))->toBeGreaterThan(0);
+            expect(await($client->persist('volatile_key')))->toBe(1);
+            expect(await($client->ttl('volatile_key')))->toBe(-1);
+
+            await($client->set('scan_test_1', '1'));
+            await($client->set('scan_test_2', '2'));
+
+            $cursor = '0';
+            $foundKeys = [];
+
+            do {
+                [$cursor, $keys] = await($client->scan($cursor, 'scan_test_*', 10));
+                $foundKeys = [...$foundKeys, ...$keys];
+            } while ($cursor !== '0');
+
+            expect($foundKeys)->toContain('scan_test_1')
+                ->and($foundKeys)->toContain('scan_test_2')
+            ;
+
+        } finally {
+            $client->close();
+        }
+    });
 });
 
 describe('RedisClient - Strings & Numerics', function (): void {
