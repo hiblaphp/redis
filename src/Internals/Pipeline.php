@@ -15,6 +15,7 @@ use Hibla\Redis\Traits\Pipeline\ListsPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\PubSubPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\SetsPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\SortedSetsPipelineTrait;
+use Hibla\Redis\Traits\Pipeline\StreamsPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\StringsPipelineTrait;
 use LogicException;
 
@@ -33,6 +34,7 @@ final class Pipeline implements PipelineInterface
     use StringsPipelineTrait;
     use JsonPipelineTrait;
     use GeoPipelineTrait;
+    use StreamsPipelineTrait;
 
     /**
      * @internal

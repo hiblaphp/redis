@@ -13,6 +13,7 @@ use Hibla\Redis\Interfaces\Pipeline\ListsPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\PubSubPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\SetsPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\SortedSetsPipelineInterface;
+use Hibla\Redis\Interfaces\Pipeline\StreamsPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\StringsPipelineInterface;
 
 /**
@@ -31,7 +32,8 @@ interface PipelineInterface extends
     SortedSetsPipelineInterface,
     StringsPipelineInterface,
     JsonPipelineInterface,
-    GeoPipelineInterface
+    GeoPipelineInterface,
+    StreamsPipelineInterface
 {
     /**
      * Adds a custom or raw CommandInterface to the pipeline.
