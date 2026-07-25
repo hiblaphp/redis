@@ -19,7 +19,12 @@ trait PubSubPipelineTrait
     abstract public function executeCommand(CommandInterface $command): self;
 
     /**
-     * {@inheritDoc}
+     * Adds a PUBLISH command to the pipeline.
+     *
+     * @param string $channel The channel to broadcast to.
+     * @param string $message The message payload.
+     *
+     * @return self For method chaining.
      */
     public function publish(string $channel, string $message): self
     {

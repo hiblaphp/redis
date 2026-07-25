@@ -22,7 +22,12 @@ trait SetsPipelineTrait
     abstract public function executeCommand(CommandInterface $command): self;
 
     /**
-     * {@inheritDoc}
+     * Adds a SADD command to the pipeline.
+     *
+     * @param string $key The set key.
+     * @param mixed ...$members Members to add.
+     *
+     * @return self For method chaining.
      */
     public function sadd(string $key, mixed ...$members): self
     {
@@ -30,7 +35,12 @@ trait SetsPipelineTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Adds a SREM command to the pipeline.
+     *
+     * @param string $key The set key.
+     * @param mixed ...$members Members to remove.
+     *
+     * @return self For method chaining.
      */
     public function srem(string $key, mixed ...$members): self
     {
@@ -38,7 +48,11 @@ trait SetsPipelineTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Adds a SMEMBERS command to the pipeline.
+     *
+     * @param string $key The set key.
+     *
+     * @return self For method chaining.
      */
     public function smembers(string $key): self
     {
@@ -46,7 +60,12 @@ trait SetsPipelineTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Adds a SISMEMBER command to the pipeline.
+     *
+     * @param string $key The set key.
+     * @param mixed $member Member to test.
+     *
+     * @return self For method chaining.
      */
     public function sismember(string $key, mixed $member): self
     {

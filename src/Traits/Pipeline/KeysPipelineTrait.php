@@ -24,7 +24,11 @@ trait KeysPipelineTrait
     abstract public function executeCommand(CommandInterface $command): self;
 
     /**
-     * {@inheritDoc}
+     * Adds a DEL command to the pipeline.
+     *
+     * @param string ...$keys One or more keys to delete.
+     *
+     * @return self For method chaining.
      */
     public function del(string ...$keys): self
     {
@@ -32,7 +36,11 @@ trait KeysPipelineTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Adds an EXISTS command to the pipeline.
+     *
+     * @param string ...$keys One or more keys to check.
+     *
+     * @return self For method chaining.
      */
     public function exists(string ...$keys): self
     {
@@ -40,7 +48,12 @@ trait KeysPipelineTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Adds an EXPIRE command to the pipeline.
+     *
+     * @param string $key The target key.
+     * @param int $seconds Timeout in seconds.
+     *
+     * @return self For method chaining.
      */
     public function expire(string $key, int $seconds): self
     {
@@ -48,7 +61,11 @@ trait KeysPipelineTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Adds a TTL command to the pipeline.
+     *
+     * @param string $key The key to inspect.
+     *
+     * @return self For method chaining.
      */
     public function ttl(string $key): self
     {
@@ -56,7 +73,11 @@ trait KeysPipelineTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Adds a TYPE command to the pipeline.
+     *
+     * @param string $key The key to inspect.
+     *
+     * @return self For method chaining.
      */
     public function type(string $key): self
     {
@@ -64,7 +85,11 @@ trait KeysPipelineTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Adds an UNLINK command to the pipeline.
+     *
+     * @param string ...$keys One or more keys to unlink.
+     *
+     * @return self For method chaining.
      */
     public function unlink(string ...$keys): self
     {
