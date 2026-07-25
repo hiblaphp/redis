@@ -64,4 +64,53 @@ interface HashesPipelineInterface
      * @return self For method chaining.
      */
     public function hmget(string $key, string ...$fields): self;
+
+    /**
+     * Adds an HINCRBY command to the pipeline.
+     *
+     * @param string $key Hash key.
+     * @param string $field Field name.
+     * @param int $increment Integer amount to increment by.
+     *
+     * @return self For method chaining.
+     */
+    public function hincrby(string $key, string $field, int $increment): self;
+
+    /**
+     * Adds an HINCRBYFLOAT command to the pipeline.
+     *
+     * @param string $key Hash key.
+     * @param string $field Field name.
+     * @param float $increment Float amount to increment by.
+     *
+     * @return self For method chaining.
+     */
+    public function hincrbyfloat(string $key, string $field, float $increment): self;
+
+    /**
+     * Adds an HKEYS command to the pipeline.
+     *
+     * @param string $key Hash key.
+     *
+     * @return self For method chaining.
+     */
+    public function hkeys(string $key): self;
+
+    /**
+     * Adds an HVALS command to the pipeline.
+     *
+     * @param string $key Hash key.
+     *
+     * @return self For method chaining.
+     */
+    public function hvals(string $key): self;
+
+    /**
+     * Adds an HLEN command to the pipeline.
+     *
+     * @param string $key Hash key.
+     *
+     * @return self For method chaining.
+     */
+    public function hlen(string $key): self;
 }

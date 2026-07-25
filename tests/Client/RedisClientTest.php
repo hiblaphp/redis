@@ -182,7 +182,6 @@ describe('RedisClient - Key Management', function (): void {
             expect($foundKeys)->toContain('scan_test_1')
                 ->and($foundKeys)->toContain('scan_test_2')
             ;
-
         } finally {
             $client->close();
         }
@@ -311,6 +310,33 @@ describe('RedisClient - Hashes', function (): void {
         try {
             $hash = await($client->hgetall('missing_hash'));
             expect($hash)->toBe([]);
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('can perform advanced hash operations: HINCRBY, HINCRBYFLOAT, HLEN, HKEYS, HVALS', function () {
+        $client = createIsolatedCleanClient();
+
+        try {
+            await($client->del('adv_hash'));
+            await($client->hset('adv_hash', ['clicks' => '10', 'rating' => '4.5', 'name' => 'Product A']));
+
+            expect(await($client->hincrby('adv_hash', 'clicks', 5)))->toBe(15);
+
+            expect((float) await($client->hincrbyfloat('adv_hash', 'rating', 0.2)))->toBe(4.7);
+
+            expect(await($client->hlen('adv_hash')))->toBe(3);
+
+            $keys = await($client->hkeys('adv_hash'));
+            $vals = await($client->hvals('adv_hash'));
+
+            sort($keys);
+            sort($vals);
+
+            expect($keys)->toBe(['clicks', 'name', 'rating'])
+                ->and($vals)->toBe(['15', '4.7', 'Product A'])
+            ;
         } finally {
             $client->close();
         }

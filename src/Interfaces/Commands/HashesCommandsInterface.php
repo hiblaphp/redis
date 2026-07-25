@@ -66,4 +66,53 @@ interface HashesCommandsInterface
      * @return PromiseInterface<array<int, string|null>> Array of values matching requested fields.
      */
     public function hmget(string $key, string ...$fields): PromiseInterface;
+
+    /**
+     * Increments the number stored at field in the hash stored at key by increment.
+     *
+     * @param string $key Hash key.
+     * @param string $field Field name.
+     * @param int $increment Integer amount to increment by.
+     *
+     * @return PromiseInterface<int> Resolves to the value at field after the increment operation.
+     */
+    public function hincrby(string $key, string $field, int $increment): PromiseInterface;
+
+    /**
+     * Increment the specified field of a hash representing a floating point number by the specified increment.
+     *
+     * @param string $key Hash key.
+     * @param string $field Field name.
+     * @param float $increment Float amount to increment by.
+     *
+     * @return PromiseInterface<string> Resolves to the string representation of the new value.
+     */
+    public function hincrbyfloat(string $key, string $field, float $increment): PromiseInterface;
+
+    /**
+     * Returns all field names in the hash stored at key.
+     *
+     * @param string $key Hash key.
+     *
+     * @return PromiseInterface<array<int, string>> List of fields in the hash, or an empty array if the key does not exist.
+     */
+    public function hkeys(string $key): PromiseInterface;
+
+    /**
+     * Returns all values in the hash stored at key.
+     *
+     * @param string $key Hash key.
+     *
+     * @return PromiseInterface<array<int, string>> List of values in the hash, or an empty array if the key does not exist.
+     */
+    public function hvals(string $key): PromiseInterface;
+
+    /**
+     * Returns the number of fields contained in the hash stored at key.
+     *
+     * @param string $key Hash key.
+     *
+     * @return PromiseInterface<int> Number of fields in the hash, or 0 when the key does not exist.
+     */
+    public function hlen(string $key): PromiseInterface;
 }

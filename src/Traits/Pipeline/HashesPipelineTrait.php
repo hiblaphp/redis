@@ -8,8 +8,13 @@ use Hibla\Redis\Command\Hashes\HdelCommand;
 use Hibla\Redis\Command\Hashes\HexistsCommand;
 use Hibla\Redis\Command\Hashes\HgetallCommand;
 use Hibla\Redis\Command\Hashes\HgetCommand;
+use Hibla\Redis\Command\Hashes\HincrbyCommand;
+use Hibla\Redis\Command\Hashes\HincrbyfloatCommand;
+use Hibla\Redis\Command\Hashes\HkeysCommand;
+use Hibla\Redis\Command\Hashes\HlenCommand;
 use Hibla\Redis\Command\Hashes\HmgetCommand;
 use Hibla\Redis\Command\Hashes\HsetCommand;
+use Hibla\Redis\Command\Hashes\HvalsCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
 trait HashesPipelineTrait
@@ -111,5 +116,69 @@ trait HashesPipelineTrait
     public function hmget(string $key, string ...$fields): self
     {
         return $this->executeCommand(new HmgetCommand([$key, ...$fields]));
+    }
+
+    /**
+     * Adds an HINCRBY command to the pipeline.
+     *
+     * @param string $key Hash key.
+     * @param string $field Field name.
+     * @param int $increment Integer amount to increment by.
+     *
+     * @return self For method chaining.
+     */
+    public function hincrby(string $key, string $field, int $increment): self
+    {
+        return $this->executeCommand(new HincrbyCommand([$key, $field, $increment]));
+    }
+
+    /**
+     * Adds an HINCRBYFLOAT command to the pipeline.
+     *
+     * @param string $key Hash key.
+     * @param string $field Field name.
+     * @param float $increment Float amount to increment by.
+     *
+     * @return self For method chaining.
+     */
+    public function hincrbyfloat(string $key, string $field, float $increment): self
+    {
+        return $this->executeCommand(new HincrbyfloatCommand([$key, $field, $increment]));
+    }
+
+    /**
+     * Adds an HKEYS command to the pipeline.
+     *
+     * @param string $key Hash key.
+     *
+     * @return self For method chaining.
+     */
+    public function hkeys(string $key): self
+    {
+        return $this->executeCommand(new HkeysCommand([$key]));
+    }
+
+    /**
+     * Adds an HVALS command to the pipeline.
+     *
+     * @param string $key Hash key.
+     *
+     * @return self For method chaining.
+     */
+    public function hvals(string $key): self
+    {
+        return $this->executeCommand(new HvalsCommand([$key]));
+    }
+
+    /**
+     * Adds an HLEN command to the pipeline.
+     *
+     * @param string $key Hash key.
+     *
+     * @return self For method chaining.
+     */
+    public function hlen(string $key): self
+    {
+        return $this->executeCommand(new HlenCommand([$key]));
     }
 }
