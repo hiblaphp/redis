@@ -20,9 +20,12 @@ trait PubSubCommandsTrait
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;
 
     /**
-     * {@inheritDoc}
+     * Posts a message payload to specified channel.
      *
-     * @return PromiseInterface<int>
+     * @param string $channel Target channel.
+     * @param string $message Message payload.
+     *
+     * @return PromiseInterface<int> Number of clients that received message.
      */
     public function publish(string $channel, string $message): PromiseInterface
     {

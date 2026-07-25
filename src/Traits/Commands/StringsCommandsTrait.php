@@ -27,9 +27,11 @@ trait StringsCommandsTrait
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;
 
     /**
-     * {@inheritDoc}
+     * Retrieves the string value associated with the specified key.
      *
-     * @return PromiseInterface<string|null>
+     * @param string $key Key to retrieve.
+     *
+     * @return PromiseInterface<string|null> Resolves to value or null if missing.
      */
     public function get(string $key): PromiseInterface
     {
@@ -37,9 +39,12 @@ trait StringsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Sets the specified key to hold the provided string value.
      *
-     * @return PromiseInterface<string>
+     * @param string $key Key to set.
+     * @param mixed $value Value to store (scalar or Stringable).
+     *
+     * @return PromiseInterface<string> Resolves to "OK" on success.
      */
     public function set(string $key, mixed $value): PromiseInterface
     {
@@ -47,9 +52,11 @@ trait StringsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Retrieves the values of all specified keys.
      *
-     * @return PromiseInterface<array<int, string|null>>
+     * @param string ...$keys Keys to retrieve.
+     *
+     * @return PromiseInterface<array<int, string|null>> Array of values matching key order.
      */
     public function mget(string ...$keys): PromiseInterface
     {
@@ -57,9 +64,11 @@ trait StringsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Increments the number stored at key by one.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Key to increment.
+     *
+     * @return PromiseInterface<int> Updated integer value.
      */
     public function incr(string $key): PromiseInterface
     {
@@ -67,9 +76,11 @@ trait StringsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Decrements the number stored at key by one.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Key to decrement.
+     *
+     * @return PromiseInterface<int> Updated integer value.
      */
     public function decr(string $key): PromiseInterface
     {
@@ -77,9 +88,12 @@ trait StringsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Increments the number stored at key by increment amount.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Key to increment.
+     * @param int $increment Integer amount to increment.
+     *
+     * @return PromiseInterface<int> Updated integer value.
      */
     public function incrby(string $key, int $increment): PromiseInterface
     {
@@ -87,9 +101,12 @@ trait StringsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Increments floating point number stored at key by increment amount.
      *
-     * @return PromiseInterface<string>
+     * @param string $key Key to increment.
+     * @param float $increment Float amount to increment.
+     *
+     * @return PromiseInterface<string> Updated float value represented as a string.
      */
     public function incrbyfloat(string $key, float $increment): PromiseInterface
     {
@@ -97,9 +114,13 @@ trait StringsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Sets key to hold string value with a given timeout in seconds.
      *
-     * @return PromiseInterface<string>
+     * @param string $key Key to set.
+     * @param int $seconds TTL in seconds.
+     * @param mixed $value Value to store.
+     *
+     * @return PromiseInterface<string> Resolves to "OK".
      */
     public function setex(string $key, int $seconds, mixed $value): PromiseInterface
     {

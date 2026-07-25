@@ -28,9 +28,14 @@ trait JsonCommandsTrait
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;
 
     /**
-     * {@inheritDoc}
+     * Sets the JSON value at key and path.
      *
-     * @return PromiseInterface<string|null>
+     * @param string $key Target key storing the JSON document.
+     * @param string $path JSONPath expression (e.g., '$' for root or '$.user.profile').
+     * @param mixed $value PHP value to store (will be automatically serialized with json_encode).
+     * @param string|null $exist Optional condition flag: 'NX' (set only if path does not exist) or 'XX' (set only if path exists).
+     *
+     * @return PromiseInterface<string|null> Resolves to "OK" on success, or null if 'NX'/'XX' condition was not met.
      */
     public function jsonSet(string $key, string $path, mixed $value, ?string $exist = null): PromiseInterface
     {
@@ -45,9 +50,14 @@ trait JsonCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Retrieves the JSON value at key and optional path(s).
      *
-     * @return PromiseInterface<mixed>
+     * Automatically deserializes raw JSON response strings into native PHP types/arrays.
+     *
+     * @param string $key Target key storing the JSON document.
+     * @param string ...$paths One or more JSONPath expressions (defaults to '$' for root document).
+     *
+     * @return PromiseInterface<mixed> Resolves to the decoded PHP value/array, or null if key/path does not exist.
      */
     public function jsonGet(string $key, string ...$paths): PromiseInterface
     {
@@ -57,9 +67,12 @@ trait JsonCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Deletes a JSON value at key and path.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Target key storing the JSON document.
+     * @param string $path JSONPath expression specifying the element/property to delete (defaults to '$').
+     *
+     * @return PromiseInterface<int> Resolves to the integer number of deleted JSON elements.
      */
     public function jsonDel(string $key, string $path = '$'): PromiseInterface
     {
@@ -67,11 +80,12 @@ trait JsonCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Retrieves the JSON values at path for multiple keys.
      *
-     * @param array<int, string> $keys
+     * @param array<int, string> $keys Array of target keys to inspect.
+     * @param string $path JSONPath expression to evaluate on each key.
      *
-     * @return PromiseInterface<array<int, mixed>>
+     * @return PromiseInterface<array<int, mixed>> Resolves to an array of decoded JSON values in the same order as requested keys.
      */
     public function jsonMget(array $keys, string $path): PromiseInterface
     {
@@ -79,9 +93,13 @@ trait JsonCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Increments the numeric value stored at path by the specified number.
      *
-     * @return PromiseInterface<mixed>
+     * @param string $key Target key storing the JSON document.
+     * @param string $path JSONPath expression targeting numeric value(s).
+     * @param float|int $number Numeric amount to increment by.
+     *
+     * @return PromiseInterface<mixed> Resolves to the updated numeric value(s) decoded from JSON.
      */
     public function jsonNumincrby(string $key, string $path, float|int $number): PromiseInterface
     {
@@ -89,9 +107,13 @@ trait JsonCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Appends JSON value(s) to the array stored at path.
      *
-     * @return PromiseInterface<array<int, int|null>|int|null>
+     * @param string $key Target key storing the JSON document.
+     * @param string $path JSONPath expression targeting an array.
+     * @param mixed ...$values One or more PHP values to append (automatically serialized to JSON).
+     *
+     * @return PromiseInterface<array<int, int|null>|int|null> Resolves to array length(s) after appending, or null for non-array paths.
      */
     public function jsonArrappend(string $key, string $path, mixed ...$values): PromiseInterface
     {
@@ -101,9 +123,12 @@ trait JsonCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Reports the type of JSON value stored at path.
      *
-     * @return PromiseInterface<array<int, string|null>|string|null>
+     * @param string $key Target key storing the JSON document.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return PromiseInterface<array<int, string|null>|string|null> Resolves to type string(s) (e.g. 'object', 'array', 'string', 'integer', 'boolean').
      */
     public function jsonType(string $key, string $path = '$'): PromiseInterface
     {
@@ -111,9 +136,12 @@ trait JsonCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Toggles a boolean value stored at path.
      *
-     * @return PromiseInterface<array<int, int|bool|null>|int|bool|null>
+     * @param string $key Target key storing the JSON document.
+     * @param string $path JSONPath expression targeting boolean value(s) (defaults to '$').
+     *
+     * @return PromiseInterface<array<int, int|bool|null>|int|bool|null> Resolves to the new boolean state(s) after toggling.
      */
     public function jsonToggle(string $key, string $path = '$'): PromiseInterface
     {
@@ -121,9 +149,12 @@ trait JsonCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Clears container values (arrays or objects) or resets numbers to zero at path.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Target key storing the JSON document.
+     * @param string $path JSONPath expression specifying elements to clear (defaults to '$').
+     *
+     * @return PromiseInterface<int> Resolves to the number of cleared containers or zeroed numbers.
      */
     public function jsonClear(string $key, string $path = '$'): PromiseInterface
     {

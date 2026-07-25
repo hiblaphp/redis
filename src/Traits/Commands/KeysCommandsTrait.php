@@ -25,9 +25,11 @@ trait KeysCommandsTrait
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;
 
     /**
-     * {@inheritDoc}
+     * Removes the specified keys. A key is ignored if it does not exist.
      *
-     * @return PromiseInterface<int>
+     * @param string ...$keys One or more keys to delete.
+     *
+     * @return PromiseInterface<int> Resolves to the number of keys removed.
      */
     public function del(string ...$keys): PromiseInterface
     {
@@ -35,9 +37,11 @@ trait KeysCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Returns the number of keys that exist among the requested keys.
      *
-     * @return PromiseInterface<int>
+     * @param string ...$keys One or more keys to check.
+     *
+     * @return PromiseInterface<int> Resolves to the count of existing keys.
      */
     public function exists(string ...$keys): PromiseInterface
     {
@@ -45,9 +49,12 @@ trait KeysCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Sets a timeout on key in seconds.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Target key.
+     * @param int $seconds Timeout in seconds.
+     *
+     * @return PromiseInterface<int> Resolves to 1 if timeout was set, 0 if key missing.
      */
     public function expire(string $key, int $seconds): PromiseInterface
     {
@@ -55,9 +62,11 @@ trait KeysCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Returns the remaining time to live of a key in seconds.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Key to inspect.
+     *
+     * @return PromiseInterface<int> TTL in seconds, -1 if no TTL, -2 if missing.
      */
     public function ttl(string $key): PromiseInterface
     {
@@ -65,9 +74,11 @@ trait KeysCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Returns the string representation of the type of value stored at key.
      *
-     * @return PromiseInterface<string>
+     * @param string $key Key to inspect.
+     *
+     * @return PromiseInterface<string> Resolves to type string ('string', 'list', 'hash', etc.).
      */
     public function type(string $key): PromiseInterface
     {
@@ -75,9 +86,11 @@ trait KeysCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Asynchronously deletes keys in a background thread without blocking the server.
      *
-     * @return PromiseInterface<int>
+     * @param string ...$keys One or more keys to unlink.
+     *
+     * @return PromiseInterface<int> Resolves to number of unlinked keys.
      */
     public function unlink(string ...$keys): PromiseInterface
     {

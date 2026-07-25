@@ -20,9 +20,11 @@ trait ConnectionCommandsTrait
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;
 
     /**
-     * {@inheritDoc}
+     * Tests the connection to the Redis server.
      *
-     * @return PromiseInterface<string>
+     * @param string|null $message Optional message to echo.
+     *
+     * @return PromiseInterface<string> Resolves to "PONG" or the provided message.
      */
     public function ping(?string $message = null): PromiseInterface
     {

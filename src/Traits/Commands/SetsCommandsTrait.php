@@ -23,9 +23,12 @@ trait SetsCommandsTrait
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;
 
     /**
-     * {@inheritDoc}
+     * Adds members to set stored at key.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Set key.
+     * @param mixed ...$members Members to add.
+     *
+     * @return PromiseInterface<int> Number of elements added.
      */
     public function sadd(string $key, mixed ...$members): PromiseInterface
     {
@@ -33,9 +36,12 @@ trait SetsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Removes members from set stored at key.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Set key.
+     * @param mixed ...$members Members to remove.
+     *
+     * @return PromiseInterface<int> Number of elements removed.
      */
     public function srem(string $key, mixed ...$members): PromiseInterface
     {
@@ -43,9 +49,11 @@ trait SetsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Returns all members of set stored at key.
      *
-     * @return PromiseInterface<array<int, string>>
+     * @param string $key Set key.
+     *
+     * @return PromiseInterface<array<int, string>> Array of all set members.
      */
     public function smembers(string $key): PromiseInterface
     {
@@ -53,9 +61,12 @@ trait SetsCommandsTrait
     }
 
     /**
-     * {@inheritDoc}
+     * Returns if member belongs to set stored at key.
      *
-     * @return PromiseInterface<int>
+     * @param string $key Set key.
+     * @param mixed $member Member to test.
+     *
+     * @return PromiseInterface<int> 1 if member, 0 otherwise.
      */
     public function sismember(string $key, mixed $member): PromiseInterface
     {
