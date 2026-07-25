@@ -26,15 +26,26 @@ trait SortedSetsCommandsTrait
      * Adds members with scores to sorted set stored at key.
      *
      * @param string $key Sorted set key.
-     * @param float|int $score Score.
-     * @param string $member Member name.
-     * @param mixed ...$additionalScoresAndMembers Additional score/member pairs.
+     * @param array<string, float|int> $members Associative array of `['member' => score]`.
      *
      * @return PromiseInterface<int> Number of elements added.
      */
-    public function zadd(string $key, float|int $score, string $member, mixed ...$additionalScoresAndMembers): PromiseInterface
+    public function zadd(string $key, array $members): PromiseInterface
     {
-        return $this->executeCommand(new ZaddCommand([$key, $score, $member, ...$additionalScoresAndMembers]));
+        $args = [$key];
+
+        if (array_is_list($members)) {
+            foreach ($members as $item) {
+                $args[] = $item;
+            }
+        } else {
+            foreach ($members as $member => $score) {
+                $args[] = $score;
+                $args[] = (string) $member;
+            }
+        }
+
+        return $this->executeCommand(new ZaddCommand($args));
     }
 
     /**

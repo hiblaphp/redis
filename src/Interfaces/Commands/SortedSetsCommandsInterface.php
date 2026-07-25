@@ -12,13 +12,11 @@ interface SortedSetsCommandsInterface
      * Adds members with scores to sorted set stored at key.
      *
      * @param string $key Sorted set key.
-     * @param float|int $score Score.
-     * @param string $member Member name.
-     * @param mixed ...$additionalScoresAndMembers Additional score/member pairs.
+     * @param array<string, float|int> $members Associative array of `['member' => score]`.
      *
      * @return PromiseInterface<int> Number of elements added.
      */
-    public function zadd(string $key, float|int $score, string $member, mixed ...$additionalScoresAndMembers): PromiseInterface;
+    public function zadd(string $key, array $members): PromiseInterface;
 
     /**
      * Removes members from sorted set stored at key.

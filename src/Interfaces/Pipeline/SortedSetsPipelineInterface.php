@@ -10,13 +10,11 @@ interface SortedSetsPipelineInterface
      * Adds a ZADD command to the pipeline.
      *
      * @param string $key The sorted set key.
-     * @param float|int $score Score for the first member.
-     * @param string $member Member name.
-     * @param mixed ...$additionalScoresAndMembers Additional score/member pairs.
+     * @param array<string, float|int> $members Associative array of `['member' => score]`.
      *
      * @return self For method chaining.
      */
-    public function zadd(string $key, float|int $score, string $member, mixed ...$additionalScoresAndMembers): self;
+    public function zadd(string $key, array $members): self;
 
     /**
      * Adds a ZREM command to the pipeline.

@@ -25,15 +25,26 @@ trait SortedSetsPipelineTrait
      * Adds a ZADD command to the pipeline.
      *
      * @param string $key The sorted set key.
-     * @param float|int $score Score for the first member.
-     * @param string $member Member name.
-     * @param mixed ...$additionalScoresAndMembers Additional score/member pairs.
+     * @param array<string, float|int> $members Associative array of `['member' => score]`.
      *
      * @return self For method chaining.
      */
-    public function zadd(string $key, float|int $score, string $member, mixed ...$additionalScoresAndMembers): self
+    public function zadd(string $key, array $members): self
     {
-        return $this->executeCommand(new ZaddCommand([$key, $score, $member, ...$additionalScoresAndMembers]));
+        $args = [$key];
+
+        if (array_is_list($members)) {
+            foreach ($members as $item) {
+                $args[] = $item;
+            }
+        } else {
+            foreach ($members as $member => $score) {
+                $args[] = $score;
+                $args[] = (string) $member;
+            }
+        }
+
+        return $this->executeCommand(new ZaddCommand($args));
     }
 
     /**
