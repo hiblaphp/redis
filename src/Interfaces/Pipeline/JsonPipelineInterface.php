@@ -99,4 +99,58 @@ interface JsonPipelineInterface
      * @return self For method chaining.
      */
     public function jsonClear(string $key, string $path = '$'): self;
+
+    /**
+     * Reports the length of the JSON array at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return self For method chaining.
+     */
+    public function jsonArrlen(string $key, string $path = '$'): self;
+
+    /**
+     * Removes and returns an element from the index in the JSON array.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     * @param int $index Index to pop from (defaults to -1 for the last element).
+     *
+     * @return self For method chaining.
+     */
+    public function jsonArrpop(string $key, string $path = '$', int $index = -1): self;
+
+    /**
+     * Searches for the first occurrence of a scalar JSON value in an array.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression.
+     * @param mixed $value PHP value to search for (will be JSON encoded).
+     * @param int $start Start index (inclusive).
+     * @param int $stop Stop index (exclusive).
+     *
+     * @return self For method chaining.
+     */
+    public function jsonArrindex(string $key, string $path, mixed $value, int $start = 0, int $stop = 0): self;
+
+    /**
+     * Returns the keys in the object at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return self For method chaining.
+     */
+    public function jsonObjkeys(string $key, string $path = '$'): self;
+
+    /**
+     * Reports the number of keys in the JSON object at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return self For method chaining.
+     */
+    public function jsonObjlen(string $key, string $path = '$'): self;
 }

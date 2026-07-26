@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace Hibla\Redis\Traits\Pipeline;
 
 use Hibla\Redis\Command\Json\JsonArrappendCommand;
+use Hibla\Redis\Command\Json\JsonArrindexCommand;
+use Hibla\Redis\Command\Json\JsonArrlenCommand;
+use Hibla\Redis\Command\Json\JsonArrpopCommand;
 use Hibla\Redis\Command\Json\JsonClearCommand;
 use Hibla\Redis\Command\Json\JsonDelCommand;
 use Hibla\Redis\Command\Json\JsonGetCommand;
 use Hibla\Redis\Command\Json\JsonMgetCommand;
 use Hibla\Redis\Command\Json\JsonNumincrbyCommand;
+use Hibla\Redis\Command\Json\JsonObjkeysCommand;
+use Hibla\Redis\Command\Json\JsonObjlenCommand;
 use Hibla\Redis\Command\Json\JsonSetCommand;
 use Hibla\Redis\Command\Json\JsonToggleCommand;
 use Hibla\Redis\Command\Json\JsonTypeCommand;
@@ -156,5 +161,84 @@ trait JsonPipelineTrait
     public function jsonClear(string $key, string $path = '$'): self
     {
         return $this->executeCommand(new JsonClearCommand([$key, $path]));
+    }
+
+    /**
+     * Reports the length of the JSON array at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return self For method chaining.
+     */
+    public function jsonArrlen(string $key, string $path = '$'): self
+    {
+        return $this->executeCommand(new JsonArrlenCommand([$key, $path]));
+    }
+
+    /**
+     * Removes and returns an element from the index in the JSON array.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     * @param int $index Index to pop from (defaults to -1 for the last element).
+     *
+     * @return self For method chaining.
+     */
+    public function jsonArrpop(string $key, string $path = '$', int $index = -1): self
+    {
+        return $this->executeCommand(new JsonArrpopCommand([$key, $path, $index]));
+    }
+
+    /**
+     * Searches for the first occurrence of a scalar JSON value in an array.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression.
+     * @param mixed $value PHP value to search for (will be JSON encoded).
+     * @param int $start Start index (inclusive).
+     * @param int $stop Stop index (exclusive).
+     *
+     * @return self For method chaining.
+     */
+    public function jsonArrindex(string $key, string $path, mixed $value, int $start = 0, int $stop = 0): self
+    {
+        $encoded = json_encode($value, JSON_THROW_ON_ERROR);
+        $args = [$key, $path, $encoded];
+
+        if ($start !== 0 || $stop !== 0) {
+            $args[] = $start;
+            if ($stop !== 0) {
+                $args[] = $stop;
+            }
+        }
+
+        return $this->executeCommand(new JsonArrindexCommand($args));
+    }
+
+    /**
+     * Returns the keys in the object at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return self For method chaining.
+     */
+    public function jsonObjkeys(string $key, string $path = '$'): self
+    {
+        return $this->executeCommand(new JsonObjkeysCommand([$key, $path]));
+    }
+
+    /**
+     * Reports the number of keys in the JSON object at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return self For method chaining.
+     */
+    public function jsonObjlen(string $key, string $path = '$'): self
+    {
+        return $this->executeCommand(new JsonObjlenCommand([$key, $path]));
     }
 }

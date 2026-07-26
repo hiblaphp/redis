@@ -97,7 +97,7 @@ describe('RedisClient - Streams Commands', function (): void {
         }
     });
 
-  it('can inspect and claim pending messages via XPENDING, XCLAIM, and XAUTOCLAIM', function () {
+    it('can inspect and claim pending messages via XPENDING, XCLAIM, and XAUTOCLAIM', function () {
         $client = new RedisClient(getConfig());
 
         try {
@@ -118,20 +118,20 @@ describe('RedisClient - Streams Commands', function (): void {
 
             $claimed = await($client->xclaim($stream, $group, 'consumer_2', 0, [$id1]));
             expect($claimed)->toBeArray()->not->toBeEmpty();
-            
+
             $claimedId = $claimed[0][0] ?? null;
             expect($claimedId)->toBe($id1);
 
             await($client->xack($stream, $group, $id1));
 
             $autoClaimed = await($client->xautoclaim($stream, $group, 'consumer_2', 0, '0-0'));
-            
+
             expect($autoClaimed)->toBeArray();
             expect(count($autoClaimed))->toBeGreaterThanOrEqual(2);
-            
+
             $messages = $autoClaimed[1];
             expect($messages)->toBeArray()->not->toBeEmpty();
-            
+
             $autoClaimedId = $messages[0][0] ?? null;
             expect($autoClaimedId)->toBe($id2);
 
