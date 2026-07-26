@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Hibla\Redis\Traits\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Redis\Command\SortedSets\BzpopmaxCommand;
+use Hibla\Redis\Command\SortedSets\BzpopminCommand;
 use Hibla\Redis\Command\SortedSets\ZaddCommand;
+use Hibla\Redis\Command\SortedSets\ZcountCommand;
+use Hibla\Redis\Command\SortedSets\ZincrbyCommand;
 use Hibla\Redis\Command\SortedSets\ZrangeCommand;
+use Hibla\Redis\Command\SortedSets\ZrankCommand;
 use Hibla\Redis\Command\SortedSets\ZremCommand;
+use Hibla\Redis\Command\SortedSets\ZrevrankCommand;
 use Hibla\Redis\Command\SortedSets\ZscoreCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
@@ -86,5 +92,103 @@ trait SortedSetsCommandsTrait
     public function zscore(string $key, string $member): PromiseInterface
     {
         return $this->executeCommand(new ZscoreCommand([$key, $member]));
+    }
+
+    /**
+     * Increments the score of a member in a sorted set.
+     *
+     * @param string $key Sorted set key.
+     * @param float|int $increment Amount to increment by.
+     * @param string $member Member name.
+     *
+     * @return PromiseInterface<string> Resolves to the new score of the member as a string.
+     */
+    public function zincrby(string $key, float|int $increment, string $member): PromiseInterface
+    {
+        return $this->executeCommand(new ZincrbyCommand([$key, $increment, $member]));
+    }
+
+    /**
+     * Returns the number of members in a sorted set with scores within the given values.
+     *
+     * @param string $key Sorted set key.
+     * @param int|string $min Minimum score (can be string like '-inf' or '(1').
+     * @param int|string $max Maximum score (can be string like '+inf' or '(5').
+     *
+     * @return PromiseInterface<int> Number of elements in the specified score range.
+     */
+    public function zcount(string $key, int|string $min, int|string $max): PromiseInterface
+    {
+        return $this->executeCommand(new ZcountCommand([$key, $min, $max]));
+    }
+
+    /**
+     * Returns the rank of member in the sorted set, with the scores ordered from low to high.
+     *
+     * @param string $key Sorted set key.
+     * @param string $member Member name.
+     * @param bool $withScore Whether to return the score along with the rank (Redis 6.2+).
+     *
+     * @return PromiseInterface<mixed> Resolves to the integer rank (0-based), array if WITHSCORE is true, or null if missing.
+     */
+    public function zrank(string $key, string $member, bool $withScore = false): PromiseInterface
+    {
+        $args = [$key, $member];
+        if ($withScore) {
+            $args[] = 'WITHSCORE';
+        }
+
+        return $this->executeCommand(new ZrankCommand($args));
+    }
+
+    /**
+     * Returns the rank of member in the sorted set, with the scores ordered from high to low.
+     *
+     * @param string $key Sorted set key.
+     * @param string $member Member name.
+     * @param bool $withScore Whether to return the score along with the rank (Redis 6.2+).
+     *
+     * @return PromiseInterface<mixed> Resolves to the integer rank (0-based), array if WITHSCORE is true, or null if missing.
+     */
+    public function zrevrank(string $key, string $member, bool $withScore = false): PromiseInterface
+    {
+        $args = [$key, $member];
+        if ($withScore) {
+            $args[] = 'WITHSCORE';
+        }
+
+        return $this->executeCommand(new ZrevrankCommand($args));
+    }
+
+    /**
+     * Removes and returns the member with the lowest score from one or more sorted sets, or blocks until one is available.
+     *
+     * @param string|array<string> $keys Target sorted set key(s).
+     * @param float|int $timeout Maximum time to block in seconds (0 = block indefinitely).
+     *
+     * @return PromiseInterface<array<int, string>|null> Resolves to `[key, member, score]` array, or null on timeout.
+     */
+    public function bzpopmin(string|array $keys, float|int $timeout = 0): PromiseInterface
+    {
+        $args = \is_array($keys) ? $keys : [$keys];
+        $args[] = $timeout;
+
+        return $this->executeCommand(new BzpopminCommand($args));
+    }
+
+    /**
+     * Removes and returns the member with the highest score from one or more sorted sets, or blocks until one is available.
+     *
+     * @param string|array<string> $keys Target sorted set key(s).
+     * @param float|int $timeout Maximum time to block in seconds (0 = block indefinitely).
+     *
+     * @return PromiseInterface<array<int, string>|null> Resolves to `[key, member, score]` array, or null on timeout.
+     */
+    public function bzpopmax(string|array $keys, float|int $timeout = 0): PromiseInterface
+    {
+        $args = \is_array($keys) ? $keys : [$keys];
+        $args[] = $timeout;
+
+        return $this->executeCommand(new BzpopmaxCommand($args));
     }
 }

@@ -46,4 +46,68 @@ interface SortedSetsPipelineInterface
      * @return self For method chaining.
      */
     public function zscore(string $key, string $member): self;
+
+    /**
+     * Adds a ZINCRBY command to the pipeline.
+     *
+     * @param string $key Sorted set key.
+     * @param float|int $increment Amount to increment by.
+     * @param string $member Member name.
+     *
+     * @return self For method chaining.
+     */
+    public function zincrby(string $key, float|int $increment, string $member): self;
+
+    /**
+     * Adds a ZCOUNT command to the pipeline.
+     *
+     * @param string $key Sorted set key.
+     * @param int|string $min Minimum score.
+     * @param int|string $max Maximum score.
+     *
+     * @return self For method chaining.
+     */
+    public function zcount(string $key, int|string $min, int|string $max): self;
+
+    /**
+     * Adds a ZRANK command to the pipeline.
+     *
+     * @param string $key Sorted set key.
+     * @param string $member Member name.
+     * @param bool $withScore Return score along with the rank.
+     *
+     * @return self For method chaining.
+     */
+    public function zrank(string $key, string $member, bool $withScore = false): self;
+
+    /**
+     * Adds a ZREVRANK command to the pipeline.
+     *
+     * @param string $key Sorted set key.
+     * @param string $member Member name.
+     * @param bool $withScore Return score along with the rank.
+     *
+     * @return self For method chaining.
+     */
+    public function zrevrank(string $key, string $member, bool $withScore = false): self;
+
+    /**
+     * Adds a BZPOPMIN command to the pipeline.
+     *
+     * @param string|array<string> $keys Target key(s).
+     * @param float|int $timeout Block timeout in seconds.
+     *
+     * @return self For method chaining.
+     */
+    public function bzpopmin(string|array $keys, float|int $timeout = 0): self;
+
+    /**
+     * Adds a BZPOPMAX command to the pipeline.
+     *
+     * @param string|array<string> $keys Target key(s).
+     * @param float|int $timeout Block timeout in seconds.
+     *
+     * @return self For method chaining.
+     */
+    public function bzpopmax(string|array $keys, float|int $timeout = 0): self;
 }
