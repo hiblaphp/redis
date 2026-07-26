@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hibla\Redis\Interfaces;
 
+use Hibla\Redis\Interfaces\Commands\BitmapsCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\ConnectionCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\GeoCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\HashesCommandsInterface;
+use Hibla\Redis\Interfaces\Commands\HyperLogLogCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\JsonCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\KeysCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\ListsCommandsInterface;
@@ -32,6 +34,8 @@ interface RedisCommandsInterface extends
     JsonCommandsInterface,
     GeoCommandsInterface,
     StreamsCommandsInterface,
-    ScriptingCommandsInterface
+    ScriptingCommandsInterface,
+    BitmapsCommandsInterface,
+    HyperLogLogCommandsInterface
 {
 }

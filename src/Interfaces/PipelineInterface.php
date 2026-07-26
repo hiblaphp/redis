@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hibla\Redis\Interfaces;
 
+use Hibla\Redis\Interfaces\Pipeline\BitmapsPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\ConnectionPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\GeoPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\HashesPipelineInterface;
+use Hibla\Redis\Interfaces\Pipeline\HyperLogLogPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\JsonPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\KeysPipelineInterface;
 use Hibla\Redis\Interfaces\Pipeline\ListsPipelineInterface;
@@ -35,7 +37,9 @@ interface PipelineInterface extends
     JsonPipelineInterface,
     GeoPipelineInterface,
     StreamsPipelineInterface,
-    ScriptingPipelineInterface
+    ScriptingPipelineInterface,
+    BitmapsPipelineInterface,
+    HyperLogLogPipelineInterface
 {
     /**
      * Adds a custom or raw CommandInterface to the pipeline.

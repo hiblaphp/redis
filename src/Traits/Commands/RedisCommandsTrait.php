@@ -21,4 +21,6 @@ trait RedisCommandsTrait
     use GeoCommandsTrait;
     use StreamsCommandsTrait;
     use ScriptingCommandsTrait;
+    use BitmapsCommandsTrait;
+    use HyperLogLogCommandsTrait;
 }

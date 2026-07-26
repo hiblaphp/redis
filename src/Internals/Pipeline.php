@@ -6,9 +6,11 @@ namespace Hibla\Redis\Internals;
 
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\PipelineInterface;
+use Hibla\Redis\Traits\Pipeline\BitmapsPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\ConnectionPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\GeoPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\HashesPipelineTrait;
+use Hibla\Redis\Traits\Pipeline\HyperLogLogPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\JsonPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\KeysPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\ListsPipelineTrait;
@@ -37,6 +39,8 @@ final class Pipeline implements PipelineInterface
     use GeoPipelineTrait;
     use StreamsPipelineTrait;
     use ScriptingPipelineTrait;
+    use BitmapsPipelineTrait;
+    use HyperLogLogPipelineTrait;
 
     /**
      * @internal
