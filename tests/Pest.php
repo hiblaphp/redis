@@ -2,11 +2,15 @@
 
 declare(strict_types=1);
 
+use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Enums\ConnectionState;
 use Hibla\Redis\Handlers\CommandHandler;
 use Hibla\Redis\Internals\ConnectionContext;
+use Hibla\Redis\RedisClient;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Socket\Interfaces\ConnectionInterface;
+
+use function Hibla\await;
 
 uses()->afterEach(function (): void {
     Mockery::close();
@@ -62,4 +66,17 @@ function getSslConfig(array $overrides = []): RedisConfig
     ];
 
     return RedisConfig::fromArray(array_merge($defaults, $overrides));
+}
+
+function createIsolatedCleanClient(int $maxConnections = 10): RedisClient
+{
+    $client = new RedisClient(getConfig(), maxConnections: $maxConnections);
+
+    $flushCommand = new class ([]) extends AbstractCommand {
+        public string $id = 'FLUSHDB';
+    };
+
+    await($client->executeCommand($flushCommand));
+
+    return $client;
 }

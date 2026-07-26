@@ -7,9 +7,12 @@ namespace Hibla\Redis\Traits\Commands;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Redis\Command\Streams\XackCommand;
 use Hibla\Redis\Command\Streams\XaddCommand;
+use Hibla\Redis\Command\Streams\XautoclaimCommand;
+use Hibla\Redis\Command\Streams\XclaimCommand;
 use Hibla\Redis\Command\Streams\XdelCommand;
 use Hibla\Redis\Command\Streams\XgroupCommand;
 use Hibla\Redis\Command\Streams\XlenCommand;
+use Hibla\Redis\Command\Streams\XpendingCommand;
 use Hibla\Redis\Command\Streams\XrangeCommand;
 use Hibla\Redis\Command\Streams\XreadCommand;
 use Hibla\Redis\Command\Streams\XreadgroupCommand;
@@ -259,5 +262,53 @@ trait StreamsCommandsTrait
         }
 
         return $this->executeCommand(new XreadgroupCommand($args));
+    }
+
+    /**
+     * Inspects the list of pending messages for a consumer group.
+     *
+     * @param string $key Stream key.
+     * @param string $group Consumer group name.
+     * @param string ...$options Optional arguments (e.g. IDLE, start, end, count, consumer).
+     *
+     * @return PromiseInterface<mixed> Resolves to pending message information.
+     */
+    public function xpending(string $key, string $group, string ...$options): PromiseInterface
+    {
+        return $this->executeCommand(new XpendingCommand([$key, $group, ...$options]));
+    }
+
+    /**
+     * Changes the ownership of a pending message to the specified consumer.
+     *
+     * @param string $key Stream key.
+     * @param string $group Consumer group name.
+     * @param string $consumer Target consumer name.
+     * @param int $minIdleTime Minimum idle time in milliseconds.
+     * @param array<int, string> $ids Array of entry IDs to claim.
+     * @param string ...$options Additional options (IDLE, TIME, RETRYCOUNT, FORCE, JUSTID).
+     *
+     * @return PromiseInterface<mixed> Resolves to the claimed messages or their IDs.
+     */
+    public function xclaim(string $key, string $group, string $consumer, int $minIdleTime, array $ids, string ...$options): PromiseInterface
+    {
+        return $this->executeCommand(new XclaimCommand([$key, $group, $consumer, $minIdleTime, ...$ids, ...$options]));
+    }
+
+    /**
+     * Automatically fetches and claims pending messages for a consumer group.
+     *
+     * @param string $key Stream key.
+     * @param string $group Consumer group name.
+     * @param string $consumer Target consumer name.
+     * @param int $minIdleTime Minimum idle time in milliseconds.
+     * @param string $start Start ID (e.g. '0-0').
+     * @param string ...$options Additional options (COUNT, JUSTID).
+     *
+     * @return PromiseInterface<mixed> Resolves to an array containing the next start ID and the claimed messages.
+     */
+    public function xautoclaim(string $key, string $group, string $consumer, int $minIdleTime, string $start, string ...$options): PromiseInterface
+    {
+        return $this->executeCommand(new XautoclaimCommand([$key, $group, $consumer, $minIdleTime, $start, ...$options]));
     }
 }

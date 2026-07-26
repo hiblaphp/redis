@@ -96,4 +96,47 @@ describe('RedisClient - Streams Commands', function (): void {
             $client->close();
         }
     });
+
+  it('can inspect and claim pending messages via XPENDING, XCLAIM, and XAUTOCLAIM', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            $stream = 'stream_reliability_' . uniqid();
+            $group = 'group_workers_' . uniqid();
+
+            await($client->xgroupCreate($stream, $group, '0', true));
+            $id1 = await($client->xadd($stream, ['job' => 'task_1']));
+            $id2 = await($client->xadd($stream, ['job' => 'task_2']));
+
+            await($client->xreadgroup($group, 'consumer_1', [$stream => '>'], count: 2));
+
+            $pendingSummary = await($client->xpending($stream, $group));
+            expect($pendingSummary[0])->toBe(2)
+                ->and($pendingSummary[1])->toBe($id1)
+                ->and($pendingSummary[2])->toBe($id2)
+            ;
+
+            $claimed = await($client->xclaim($stream, $group, 'consumer_2', 0, [$id1]));
+            expect($claimed)->toBeArray()->not->toBeEmpty();
+            
+            $claimedId = $claimed[0][0] ?? null;
+            expect($claimedId)->toBe($id1);
+
+            await($client->xack($stream, $group, $id1));
+
+            $autoClaimed = await($client->xautoclaim($stream, $group, 'consumer_2', 0, '0-0'));
+            
+            expect($autoClaimed)->toBeArray();
+            expect(count($autoClaimed))->toBeGreaterThanOrEqual(2);
+            
+            $messages = $autoClaimed[1];
+            expect($messages)->toBeArray()->not->toBeEmpty();
+            
+            $autoClaimedId = $messages[0][0] ?? null;
+            expect($autoClaimedId)->toBe($id2);
+
+        } finally {
+            $client->close();
+        }
+    });
 });

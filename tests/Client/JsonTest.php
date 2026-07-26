@@ -226,4 +226,34 @@ describe('RedisClient - RedisJSON Commands Suite', function (): void {
             $client->close();
         }
     });
+
+    it('can perform advanced JSON array and object operations', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            $key = 'json_adv_' . uniqid();
+
+            await($client->jsonSet($key, '$', [
+                'list' => ['A', 'B', 'C'],
+                'user' => ['name' => 'Alice', 'role' => 'admin'],
+            ]));
+
+            expect(await($client->jsonArrlen($key, '$.list')))->toBe([3]);
+            $popped = await($client->jsonArrpop($key, '$.list', -1));
+            expect($popped)->toBe(['C']);
+
+            $index = await($client->jsonArrindex($key, '$.list', 'B'));
+            expect($index)->toBe([1]);
+
+            $keys = await($client->jsonObjkeys($key, '$.user'));
+            $len = await($client->jsonObjlen($key, '$.user'));
+
+            expect($keys)->toBe([['name', 'role']])
+                ->and($len)->toBe([2])
+            ;
+
+        } finally {
+            $client->close();
+        }
+    });
 });

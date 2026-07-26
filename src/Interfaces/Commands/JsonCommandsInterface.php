@@ -103,4 +103,58 @@ interface JsonCommandsInterface
      * @return PromiseInterface<int> Resolves to the number of cleared containers or zeroed numbers.
      */
     public function jsonClear(string $key, string $path = '$'): PromiseInterface;
+
+    /**
+     * Reports the length of the JSON array at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return PromiseInterface<array<int, int|null>|int|null> Array lengths.
+     */
+    public function jsonArrlen(string $key, string $path = '$'): PromiseInterface;
+
+    /**
+     * Removes and returns an element from the index in the JSON array.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     * @param int $index Index to pop from (defaults to -1 for the last element).
+     *
+     * @return PromiseInterface<mixed> The popped JSON value, decoded.
+     */
+    public function jsonArrpop(string $key, string $path = '$', int $index = -1): PromiseInterface;
+
+    /**
+     * Searches for the first occurrence of a scalar JSON value in an array.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression.
+     * @param mixed $value PHP value to search for (will be JSON encoded).
+     * @param int $start Start index (inclusive).
+     * @param int $stop Stop index (exclusive).
+     *
+     * @return PromiseInterface<array<int, int|null>|int|null> The index of the element, or -1 if not found.
+     */
+    public function jsonArrindex(string $key, string $path, mixed $value, int $start = 0, int $stop = 0): PromiseInterface;
+
+    /**
+     * Returns the keys in the object at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return PromiseInterface<array<int, mixed>|null> Array of object keys.
+     */
+    public function jsonObjkeys(string $key, string $path = '$'): PromiseInterface;
+
+    /**
+     * Reports the number of keys in the JSON object at path.
+     *
+     * @param string $key Target JSON key.
+     * @param string $path JSONPath expression (defaults to '$').
+     *
+     * @return PromiseInterface<array<int, int|null>|int|null> Number of object keys.
+     */
+    public function jsonObjlen(string $key, string $path = '$'): PromiseInterface;
 }

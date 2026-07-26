@@ -122,4 +122,43 @@ interface StreamsCommandsInterface
      * @return PromiseInterface<array<string, array<string, array<string, string>>>|null> Map of `[streamKey => [entry_id => [field => value]]]`.
      */
     public function xreadgroup(string $group, string $consumer, array $streams, ?int $count = null, ?int $block = null, bool $noack = false): PromiseInterface;
+
+    /**
+     * Inspects the list of pending messages for a consumer group.
+     *
+     * @param string $key Stream key.
+     * @param string $group Consumer group name.
+     * @param string ...$options Optional arguments (e.g. IDLE, start, end, count, consumer).
+     *
+     * @return PromiseInterface<mixed> Resolves to pending message information.
+     */
+    public function xpending(string $key, string $group, string ...$options): PromiseInterface;
+
+    /**
+     * Changes the ownership of a pending message to the specified consumer.
+     *
+     * @param string $key Stream key.
+     * @param string $group Consumer group name.
+     * @param string $consumer Target consumer name.
+     * @param int $minIdleTime Minimum idle time in milliseconds.
+     * @param array<int, string> $ids Array of entry IDs to claim.
+     * @param string ...$options Additional options (IDLE, TIME, RETRYCOUNT, FORCE, JUSTID).
+     *
+     * @return PromiseInterface<mixed> Resolves to the claimed messages or their IDs.
+     */
+    public function xclaim(string $key, string $group, string $consumer, int $minIdleTime, array $ids, string ...$options): PromiseInterface;
+
+    /**
+     * Automatically fetches and claims pending messages for a consumer group.
+     *
+     * @param string $key Stream key.
+     * @param string $group Consumer group name.
+     * @param string $consumer Target consumer name.
+     * @param int $minIdleTime Minimum idle time in milliseconds.
+     * @param string $start Start ID (e.g. '0-0').
+     * @param string ...$options Additional options (COUNT, JUSTID).
+     *
+     * @return PromiseInterface<mixed> Resolves to an array containing the next start ID and the claimed messages.
+     */
+    public function xautoclaim(string $key, string $group, string $consumer, int $minIdleTime, string $start, string ...$options): PromiseInterface;
 }
