@@ -11,6 +11,7 @@ use Hibla\Redis\Interfaces\Commands\JsonCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\KeysCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\ListsCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\PubSubCommandsInterface;
+use Hibla\Redis\Interfaces\Commands\ScriptingCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\SetsCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\SortedSetsCommandsInterface;
 use Hibla\Redis\Interfaces\Commands\StreamsCommandsInterface;
@@ -30,6 +31,7 @@ interface RedisCommandsInterface extends
     StringsCommandsInterface,
     JsonCommandsInterface,
     GeoCommandsInterface,
-    StreamsCommandsInterface
+    StreamsCommandsInterface,
+    ScriptingCommandsInterface
 {
 }

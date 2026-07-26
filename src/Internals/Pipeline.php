@@ -13,6 +13,7 @@ use Hibla\Redis\Traits\Pipeline\JsonPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\KeysPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\ListsPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\PubSubPipelineTrait;
+use Hibla\Redis\Traits\Pipeline\ScriptingPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\SetsPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\SortedSetsPipelineTrait;
 use Hibla\Redis\Traits\Pipeline\StreamsPipelineTrait;
@@ -35,6 +36,7 @@ final class Pipeline implements PipelineInterface
     use JsonPipelineTrait;
     use GeoPipelineTrait;
     use StreamsPipelineTrait;
+    use ScriptingPipelineTrait;
 
     /**
      * @internal

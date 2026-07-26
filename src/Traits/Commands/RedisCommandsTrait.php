@@ -20,4 +20,5 @@ trait RedisCommandsTrait
     use JsonCommandsTrait;
     use GeoCommandsTrait;
     use StreamsCommandsTrait;
+    use ScriptingCommandsTrait;
 }
