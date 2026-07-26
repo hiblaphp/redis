@@ -88,6 +88,7 @@ trait ScriptingCommandsTrait
      */
     public function scriptLoad(string $script): PromiseInterface
     {
+        /** @var PromiseInterface<string> */
         return $this->executeCommand(new ScriptCommand(['LOAD', $script]));
     }
 
@@ -106,6 +107,7 @@ trait ScriptingCommandsTrait
             $args[] = $sha1;
         }
 
+        /** @var PromiseInterface<array<int, int>> */
         return $this->executeCommand(new ScriptCommand(['EXISTS', ...$args]));
     }
 
@@ -123,6 +125,7 @@ trait ScriptingCommandsTrait
             $args[] = strtoupper($mode);
         }
 
+        /** @var PromiseInterface<string> */
         return $this->executeCommand(new ScriptCommand($args));
     }
 
@@ -133,6 +136,7 @@ trait ScriptingCommandsTrait
      */
     public function scriptKill(): PromiseInterface
     {
+        /** @var PromiseInterface<string> */
         return $this->executeCommand(new ScriptCommand(['KILL']));
     }
 
@@ -145,6 +149,7 @@ trait ScriptingCommandsTrait
      */
     public function scriptDebug(string $mode): PromiseInterface
     {
+        /** @var PromiseInterface<string> */
         return $this->executeCommand(new ScriptCommand(['DEBUG', strtoupper($mode)]));
     }
 }
