@@ -554,12 +554,11 @@ final class RedisClient implements RedisClientInterface
     /**
      * {@inheritDoc}
      */
-    public function createSubscriber(float $minReconnectInterval = 1.0, float $maxReconnectInterval = 30.0): PromiseInterface
+    public function createSubscriber(?RetryConfig $retryConfig = null): PromiseInterface
     {
         $subscriber = new RedisSubscriber(
             $this->config,
-            $minReconnectInterval,
-            $maxReconnectInterval
+            $retryConfig ?? $this->retryConfig
         );
 
         $promise = $subscriber->initialize()->then(function () use ($subscriber) {

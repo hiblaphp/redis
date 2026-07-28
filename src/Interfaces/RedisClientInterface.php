@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Redis\ValueObjects\RetryConfig;
 
 /**
  * Contract for the primary Redis client.
@@ -75,12 +76,11 @@ interface RedisClientInterface extends RedisCommandsInterface
      * This creates a standalone TCP connection to Redis that is completely
      * isolated from the connection pool with transparent auto-reconnection.
      *
-     * @param float $minReconnectInterval The initial wait time in seconds before reconnecting.
-     * @param float $maxReconnectInterval The maximum wait time in seconds for exponential backoff.
+     * @param RetryConfig|null $retryConfig Optional custom retry configuration. Defaults to client's retryConfig.
      *
      * @return PromiseInterface<RedisSubscriberInterface>
      */
-    public function createSubscriber(float $minReconnectInterval = 1.0, float $maxReconnectInterval = 30.0): PromiseInterface;
+    public function createSubscriber(?RetryConfig $retryConfig = null): PromiseInterface;
 
     /**
      * Executes a callback within an isolated Redis connection for transactions and optimistic locking.

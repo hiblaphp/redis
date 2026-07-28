@@ -6,6 +6,7 @@ use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Interfaces\PipelineInterface;
 use Hibla\Redis\RedisClient;
+use Hibla\Redis\ValueObjects\RetryConfig;
 
 use function Hibla\await;
 use function Hibla\delay;
@@ -186,7 +187,14 @@ describe('Pub/Sub Cancellation', function (): void {
 
     it('cancels pending reconnect backoff cleanly when subscriber is closed during disconnect', function () {
         $client = new RedisClient(getConfig());
-        $subscriber = await($client->createSubscriber(minReconnectInterval: 0.1, maxReconnectInterval: 0.5));
+
+        $retryConfig = new RetryConfig(
+            baseDelay: 0.1,
+            maxDelay: 0.5,
+            jitter: false
+        );
+
+        $subscriber = await($client->createSubscriber(retryConfig: $retryConfig));
 
         try {
             await($subscriber->subscribe('reconnect_cancel_ch', fn () => null));

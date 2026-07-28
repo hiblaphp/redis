@@ -14,7 +14,7 @@ use Hibla\Redis\Command\PubSub\UnsubscribeCommand;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Interfaces\RedisSubscriberInterface;
 use Hibla\Redis\ValueObjects\RedisConfig;
-use InvalidArgumentException;
+use Hibla\Redis\ValueObjects\RetryConfig;
 use Throwable;
 
 /**
@@ -46,13 +46,16 @@ final class RedisSubscriber implements RedisSubscriberInterface
 
     private readonly RedisConfig $config;
 
+    private readonly RetryConfig $retryConfig;
+
+    private int $reconnectAttempt = 0;
+
     /**
      * @param RedisConfig|array<string, mixed>|string $config
      */
     public function __construct(
         RedisConfig|array|string $config,
-        private readonly float $minReconnectInterval = 1.0,
-        private readonly float $maxReconnectInterval = 30.0,
+        ?RetryConfig $retryConfig = null,
     ) {
         $this->config = match (true) {
             $config instanceof RedisConfig => $config,
@@ -60,13 +63,7 @@ final class RedisSubscriber implements RedisSubscriberInterface
             \is_string($config) => RedisConfig::fromUri($config),
         };
 
-        if ($this->minReconnectInterval <= 0.0) {
-            throw new InvalidArgumentException('Minimum reconnect interval must be greater than 0');
-        }
-
-        if ($this->maxReconnectInterval < $this->minReconnectInterval) {
-            throw new InvalidArgumentException('Maximum reconnect interval cannot be less than the minimum');
-        }
+        $this->retryConfig = $retryConfig ?? new RetryConfig();
     }
 
     /**
@@ -298,22 +295,28 @@ final class RedisSubscriber implements RedisSubscriberInterface
         $this->connection = null;
         $this->connectionPromise = null;
 
-        $this->reconnectWithBackoff($this->minReconnectInterval);
+        $this->reconnectWithBackoff();
     }
 
-    private function reconnectWithBackoff(float $delay): void
+    private function reconnectWithBackoff(): void
     {
         if ($this->isClosed) {
             return;
         }
 
-        Loop::addTimer($delay, function () use ($delay): void {
+        $this->reconnectAttempt++;
+        $delay = $this->retryConfig->getDelay($this->reconnectAttempt);
+
+        Loop::addTimer($delay, function (): void {
             if ($this->isClosed) {
                 return;
             }
 
             $this->getConnection()
                 ->then(function (Connection $conn): PromiseInterface {
+                    // Reset counter on successful reconnection
+                    $this->reconnectAttempt = 0;
+
                     $subs = [];
                     $channels = array_keys($this->channelCallbacks);
                     $patterns = array_keys($this->patternCallbacks);
@@ -327,8 +330,8 @@ final class RedisSubscriber implements RedisSubscriberInterface
 
                     return $subs !== [] ? Promise::all($subs) : Promise::resolved();
                 })
-                ->catch(function () use ($delay): void {
-                    $this->reconnectWithBackoff(min($delay * 2, $this->maxReconnectInterval));
+                ->catch(function (): void {
+                    $this->reconnectWithBackoff();
                 })
             ;
         });

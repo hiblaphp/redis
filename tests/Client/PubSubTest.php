@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\RedisClient;
+use Hibla\Redis\ValueObjects\RetryConfig;
 
 use function Hibla\await;
 use function Hibla\delay;
@@ -125,7 +126,14 @@ describe('RedisClient - Pub/Sub', function (): void {
 
     it('automatically reconnects and restores subscriptions if the connection drops', function () {
         $client = new RedisClient(getConfig());
-        $subscriber = await($client->createSubscriber(minReconnectInterval: 0.05, maxReconnectInterval: 0.2));
+
+        $retryConfig = new RetryConfig(
+            baseDelay: 0.05,
+            maxDelay: 0.2,
+            jitter: false
+        );
+
+        $subscriber = await($client->createSubscriber(retryConfig: $retryConfig));
 
         try {
             $received = [];
