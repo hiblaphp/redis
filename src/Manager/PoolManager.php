@@ -190,18 +190,8 @@ final class PoolManager
             return Promise::resolved($connection);
         }
 
-        // Try to spawn a new connection directly. Wrapping it in a new promise
-        // ensures that creation failures properly reject without bypassing flow.
         if ($this->activeConnections < $this->maxSize) {
-            /** @var Promise<Connection> $promise */
-            $promise = new Promise();
-
-            $this->createNewConnection()->then(
-                static fn (Connection $conn) => $promise->resolve($conn),
-                static fn (Throwable $e) => $promise->reject($e)
-            );
-
-            return $promise;
+            return $this->createNewConnection();
         }
 
         if ($this->maxWaiters > 0 && $this->pendingWaitersCount >= $this->maxWaiters) {
@@ -504,9 +494,10 @@ final class PoolManager
         );
 
         $promise->onCancel(function () use ($connPromise): void {
-            $this->activeConnections--;
-
+            // ONLY decrement active connections if the underlying connection 
+            // attempt is actually successfully aborted before fulfilling.
             if (! $connPromise->isSettled()) {
+                $this->activeConnections--;
                 $connPromise->cancel();
             }
 
@@ -570,9 +561,8 @@ final class PoolManager
             );
 
             $waiter->onCancel(function () use ($connPromise): void {
-                $this->activeConnections--;
-
                 if (! $connPromise->isSettled()) {
+                    $this->activeConnections--;
                     $connPromise->cancel();
                 }
 

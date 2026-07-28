@@ -108,12 +108,11 @@ final class RedisClient implements RedisClientInterface
             return Promise::rejected(new ConnectionException('Client is closed'));
         }
 
-        $pool = $this->pool;
-
         if (($error = CommandValidator::checkValidForPool($command)) !== null) {
             return Promise::rejected($error);
         }
 
+        $pool = $this->pool;
         /** @var Promise<TReturn> $outerPromise */
         $outerPromise = new Promise();
         $state = new ExecutionState();
@@ -123,13 +122,12 @@ final class RedisClient implements RedisClientInterface
             $pool,
             $state,
             $outerPromise,
-            &$attemptExecution,
+            &$attemptExecution
         ): void {
             if ($outerPromise->isCancelled()) {
                 return;
             }
 
-            // STAGE 1: Acquire Connection from Pool
             $state->activePromise = $pool->get();
 
             $state->activePromise->then(
@@ -138,7 +136,7 @@ final class RedisClient implements RedisClientInterface
                     $pool,
                     $state,
                     $outerPromise,
-                    &$attemptExecution,
+                    &$attemptExecution
                 ): void {
                     if ($outerPromise->isCancelled()) {
                         $pool->release($conn);
@@ -146,9 +144,14 @@ final class RedisClient implements RedisClientInterface
                         return;
                     }
 
-                    $state->activePromise = $conn->enqueue($command);
+                    $innerPromise = $conn->enqueue($command);
+                    $state->activePromise = $innerPromise;
 
-                    $state->activePromise->then(
+                    $innerPromise->onCancel(static function () use ($pool, $conn): void {
+                        $pool->release($conn);
+                    });
+
+                    $innerPromise->then(
                         function (mixed $result) use ($pool, $conn, $outerPromise): void {
                             $pool->release($conn);
 
@@ -192,7 +195,7 @@ final class RedisClient implements RedisClientInterface
                 function (\Throwable $e) use (
                     $state,
                     $outerPromise,
-                    &$attemptExecution,
+                    &$attemptExecution
                 ): void {
                     if ($outerPromise->isCancelled()) {
                         return;
@@ -241,8 +244,6 @@ final class RedisClient implements RedisClientInterface
             return Promise::rejected(new ConnectionException('Client is closed'));
         }
 
-        $pool = $this->pool;
-
         $pipeline = new Pipeline();
         $callback($pipeline);
 
@@ -257,6 +258,7 @@ final class RedisClient implements RedisClientInterface
             return Promise::rejected($error);
         }
 
+        $pool = $this->pool;
         /** @var Promise<array<int, mixed>> $outerPromise */
         $outerPromise = new Promise();
         $state = new ExecutionState();
@@ -266,7 +268,7 @@ final class RedisClient implements RedisClientInterface
             $pool,
             $state,
             $outerPromise,
-            &$attemptExecution,
+            &$attemptExecution
         ): void {
             if ($outerPromise->isCancelled()) {
                 return;
@@ -280,7 +282,7 @@ final class RedisClient implements RedisClientInterface
                     $pool,
                     $state,
                     $outerPromise,
-                    &$attemptExecution,
+                    &$attemptExecution
                 ): void {
                     if ($outerPromise->isCancelled()) {
                         $pool->release($conn);
@@ -288,9 +290,14 @@ final class RedisClient implements RedisClientInterface
                         return;
                     }
 
-                    $state->activePromise = $conn->enqueueBatch($commands);
+                    $innerPromise = $conn->enqueueBatch($commands);
+                    $state->activePromise = $innerPromise;
 
-                    $state->activePromise->then(
+                    $innerPromise->onCancel(static function () use ($pool, $conn): void {
+                        $pool->release($conn);
+                    });
+
+                    $innerPromise->then(
                         function (array $results) use ($pool, $conn, $outerPromise): void {
                             $pool->release($conn);
 
@@ -303,7 +310,7 @@ final class RedisClient implements RedisClientInterface
                             $conn,
                             $state,
                             $outerPromise,
-                            &$attemptExecution,
+                            &$attemptExecution
                         ): void {
                             if ($e instanceof ConnectionException) {
                                 $pool->removeConnection($conn);
@@ -334,7 +341,7 @@ final class RedisClient implements RedisClientInterface
                 function (\Throwable $e) use (
                     $state,
                     $outerPromise,
-                    &$attemptExecution,
+                    &$attemptExecution
                 ): void {
                     if ($outerPromise->isCancelled()) {
                         return;
@@ -382,8 +389,6 @@ final class RedisClient implements RedisClientInterface
             return Promise::rejected(new ConnectionException('Client is closed'));
         }
 
-        $pool = $this->pool;
-
         $pipeline = new Pipeline();
         $callback($pipeline);
 
@@ -400,6 +405,7 @@ final class RedisClient implements RedisClientInterface
 
         $wrappedCommands = [new MultiCommand(), ...$commands, new ExecCommand()];
 
+        $pool = $this->pool;
         /** @var Promise<array<int, mixed>> $outerPromise */
         $outerPromise = new Promise();
         $state = new ExecutionState();
@@ -410,7 +416,7 @@ final class RedisClient implements RedisClientInterface
             $pool,
             $state,
             $outerPromise,
-            &$attemptExecution,
+            &$attemptExecution
         ): void {
             if ($outerPromise->isCancelled()) {
                 return;
@@ -433,9 +439,14 @@ final class RedisClient implements RedisClientInterface
                         return;
                     }
 
-                    $state->activePromise = $conn->enqueueBatch($wrappedCommands);
+                    $innerPromise = $conn->enqueueBatch($wrappedCommands);
+                    $state->activePromise = $innerPromise;
 
-                    $state->activePromise->then(
+                    $innerPromise->onCancel(static function () use ($pool, $conn): void {
+                        $pool->release($conn);
+                    });
+
+                    $innerPromise->then(
                         function (array $results) use ($pool, $conn, $commands, $outerPromise): void {
                             $pool->release($conn);
 
@@ -481,7 +492,7 @@ final class RedisClient implements RedisClientInterface
                             $conn,
                             $state,
                             $outerPromise,
-                            &$attemptExecution,
+                            &$attemptExecution
                         ): void {
                             if ($e instanceof ConnectionException) {
                                 $pool->removeConnection($conn);
@@ -512,7 +523,7 @@ final class RedisClient implements RedisClientInterface
                 function (\Throwable $e) use (
                     $state,
                     $outerPromise,
-                    &$attemptExecution,
+                    &$attemptExecution
                 ): void {
                     if ($outerPromise->isCancelled()) {
                         return;
