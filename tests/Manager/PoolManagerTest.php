@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Redis\Exceptions\PoolException;
+use Hibla\Redis\Exceptions\TimeoutException;
 use Hibla\Redis\Manager\PoolManager;
 
 use function Hibla\await;

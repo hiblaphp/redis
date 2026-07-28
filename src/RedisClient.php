@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hibla\Redis;
 
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
@@ -15,6 +16,7 @@ use Hibla\Redis\Interfaces\RedisClientInterface;
 use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\Internals\CommandValidator;
 use Hibla\Redis\Internals\Connection;
+use Hibla\Redis\Internals\ExecutionState;
 use Hibla\Redis\Internals\Pipeline;
 use Hibla\Redis\Internals\RedisSubscriber;
 use Hibla\Redis\Internals\RedisTransaction;
@@ -22,6 +24,7 @@ use Hibla\Redis\Internals\TransactionExecutionState;
 use Hibla\Redis\Manager\PoolManager;
 use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 use Hibla\Redis\ValueObjects\RedisConfig;
+use Hibla\Redis\ValueObjects\RetryConfig;
 use Hibla\Socket\Interfaces\ConnectorInterface;
 
 use function Hibla\async;
@@ -45,6 +48,8 @@ final class RedisClient implements RedisClientInterface
      */
     private RedisConfig|array|string $config;
 
+    public readonly RetryConfig $retryConfig;
+
     /**
      * @param RedisConfig|array<string, mixed>|string $config
      */
@@ -56,9 +61,11 @@ final class RedisClient implements RedisClientInterface
         int $maxLifetime = 3600,
         int $maxWaiters = 0,
         float $acquireTimeout = 10.0,
-        ?ConnectorInterface $connector = null
+        ?RetryConfig $retryConfig = null,
+        ?ConnectorInterface $connector = null,
     ) {
         $this->config = $config;
+        $this->retryConfig = $retryConfig ?? new RetryConfig();
 
         $this->pool = new PoolManager(
             config: $config,
@@ -68,7 +75,8 @@ final class RedisClient implements RedisClientInterface
             maxLifetime: $maxLifetime,
             maxWaiters: $maxWaiters,
             acquireTimeout: $acquireTimeout,
-            connector: $connector
+            connector: $connector,
+            retryConfig: $this->retryConfig
         );
     }
 
@@ -100,66 +108,128 @@ final class RedisClient implements RedisClientInterface
             return Promise::rejected(new ConnectionException('Client is closed'));
         }
 
+        $pool = $this->pool;
+
         if (($error = CommandValidator::checkValidForPool($command)) !== null) {
             return Promise::rejected($error);
         }
 
-        $pool = $this->pool;
-        $connection = null;
-
         /** @var Promise<TReturn> $outerPromise */
         $outerPromise = new Promise();
+        $state = new ExecutionState();
 
-        $poolPromise = $pool->get();
-
-        $poolPromise->then(function (Connection $conn) use ($command, &$connection, $outerPromise, $pool): void {
-            $connection = $conn;
-
+        $attemptExecution = function () use (
+            $command,
+            $pool,
+            $state,
+            $outerPromise,
+            &$attemptExecution,
+        ): void {
             if ($outerPromise->isCancelled()) {
-                $pool->release($connection);
-
                 return;
             }
 
-            $innerPromise = $conn->enqueue($command);
+            // STAGE 1: Acquire Connection from Pool
+            $state->activePromise = $pool->get();
 
-            $innerPromise->then(
-                function (mixed $result) use ($outerPromise): void {
-                    if (! $outerPromise->isSettled()) {
-                        $outerPromise->resolve($result);
+            $state->activePromise->then(
+                function (Connection $conn) use (
+                    $command,
+                    $pool,
+                    $state,
+                    $outerPromise,
+                    &$attemptExecution,
+                ): void {
+                    if ($outerPromise->isCancelled()) {
+                        $pool->release($conn);
+
+                        return;
                     }
+
+                    $state->activePromise = $conn->enqueue($command);
+
+                    $state->activePromise->then(
+                        function (mixed $result) use ($pool, $conn, $outerPromise): void {
+                            $pool->release($conn);
+
+                            if (! $outerPromise->isSettled()) {
+                                $outerPromise->resolve($result);
+                            }
+                        },
+                        function (\Throwable $e) use (
+                            $pool,
+                            $conn,
+                            $state,
+                            $outerPromise,
+                            &$attemptExecution
+                        ): void {
+                            if ($e instanceof ConnectionException) {
+                                $pool->removeConnection($conn);
+                            } else {
+                                $pool->release($conn);
+                            }
+
+                            if ($outerPromise->isCancelled()) {
+                                return;
+                            }
+
+                            if ($e instanceof ConnectionException && $state->attempt < $this->retryConfig->maxRetries) {
+                                $state->attempt++;
+                                $delay = $this->retryConfig->getDelay($state->attempt);
+
+                                $state->timerId = Loop::addTimer($delay, static function () use ($state, &$attemptExecution): void {
+                                    $state->timerId = null;
+                                    $attemptExecution();
+                                });
+                            } else {
+                                if (! $outerPromise->isSettled()) {
+                                    $outerPromise->reject($e);
+                                }
+                            }
+                        }
+                    );
                 },
-                function (\Throwable $e) use ($outerPromise): void {
-                    if (! $outerPromise->isSettled()) {
-                        $outerPromise->reject($e);
+                function (\Throwable $e) use (
+                    $state,
+                    $outerPromise,
+                    &$attemptExecution,
+                ): void {
+                    if ($outerPromise->isCancelled()) {
+                        return;
+                    }
+
+                    if ($e instanceof ConnectionException && $state->attempt < $this->retryConfig->maxRetries) {
+                        $state->attempt++;
+                        $delay = $this->retryConfig->getDelay($state->attempt);
+
+                        $state->timerId = Loop::addTimer($delay, static function () use ($state, &$attemptExecution): void {
+                            $state->timerId = null;
+                            $attemptExecution();
+                        });
+                    } else {
+                        if (! $outerPromise->isSettled()) {
+                            $outerPromise->reject($e);
+                        }
                     }
                 }
             );
+        };
 
-            $outerPromise->onCancel(function () use ($innerPromise): void {
-                if (! $innerPromise->isSettled()) {
-                    $innerPromise->cancel();
-                }
-            });
-        }, function (\Throwable $e) use ($outerPromise): void {
-            if (! $outerPromise->isSettled()) {
-                $outerPromise->reject($e);
+        $outerPromise->onCancel(function () use ($state): void {
+            if ($state->timerId !== null) {
+                Loop::cancelTimer($state->timerId);
+                $state->timerId = null;
+            }
+
+            if ($state->activePromise !== null && ! $state->activePromise->isSettled()) {
+                $state->activePromise->cancel();
+                $state->activePromise = null;
             }
         });
 
-        $outerPromise->finally(function () use ($pool, &$connection): void {
-            if ($connection !== null) {
-                $pool->release($connection);
-            }
-        });
+        $attemptExecution();
 
-        $outerPromise->onCancel(function () use ($poolPromise): void {
-            if (! $poolPromise->isSettled()) {
-                $poolPromise->cancel();
-            }
-        });
-
-        return $outerPromise;
+        return Promise::propagateCancellation($outerPromise);
     }
 
     /**
@@ -171,8 +241,9 @@ final class RedisClient implements RedisClientInterface
             return Promise::rejected(new ConnectionException('Client is closed'));
         }
 
-        $pipeline = new Pipeline();
+        $pool = $this->pool;
 
+        $pipeline = new Pipeline();
         $callback($pipeline);
 
         $pipeline->lock();
@@ -186,62 +257,120 @@ final class RedisClient implements RedisClientInterface
             return Promise::rejected($error);
         }
 
-        $pool = $this->pool;
-        $connection = null;
-
         /** @var Promise<array<int, mixed>> $outerPromise */
         $outerPromise = new Promise();
+        $state = new ExecutionState();
 
-        $poolPromise = $pool->get();
-
-        $poolPromise->then(function (Connection $conn) use ($commands, &$connection, $outerPromise, $pool): void {
-            $connection = $conn;
-
+        $attemptExecution = function () use (
+            $commands,
+            $pool,
+            $state,
+            $outerPromise,
+            &$attemptExecution,
+        ): void {
             if ($outerPromise->isCancelled()) {
-                $pool->release($connection);
-
                 return;
             }
 
-            $innerPromise = $conn->enqueueBatch($commands);
+            $state->activePromise = $pool->get();
 
-            $innerPromise->then(
-                function (array $results) use ($outerPromise): void {
-                    if (! $outerPromise->isSettled()) {
-                        $outerPromise->resolve($results);
+            $state->activePromise->then(
+                function (Connection $conn) use (
+                    $commands,
+                    $pool,
+                    $state,
+                    $outerPromise,
+                    &$attemptExecution,
+                ): void {
+                    if ($outerPromise->isCancelled()) {
+                        $pool->release($conn);
+
+                        return;
                     }
+
+                    $state->activePromise = $conn->enqueueBatch($commands);
+
+                    $state->activePromise->then(
+                        function (array $results) use ($pool, $conn, $outerPromise): void {
+                            $pool->release($conn);
+
+                            if (! $outerPromise->isSettled()) {
+                                $outerPromise->resolve($results);
+                            }
+                        },
+                        function (\Throwable $e) use (
+                            $pool,
+                            $conn,
+                            $state,
+                            $outerPromise,
+                            &$attemptExecution,
+                        ): void {
+                            if ($e instanceof ConnectionException) {
+                                $pool->removeConnection($conn);
+                            } else {
+                                $pool->release($conn);
+                            }
+
+                            if ($outerPromise->isCancelled()) {
+                                return;
+                            }
+
+                            if ($e instanceof ConnectionException && $state->attempt < $this->retryConfig->maxRetries) {
+                                $state->attempt++;
+                                $delay = $this->retryConfig->getDelay($state->attempt);
+
+                                $state->timerId = Loop::addTimer($delay, static function () use ($state, &$attemptExecution): void {
+                                    $state->timerId = null;
+                                    $attemptExecution();
+                                });
+                            } else {
+                                if (! $outerPromise->isSettled()) {
+                                    $outerPromise->reject($e);
+                                }
+                            }
+                        }
+                    );
                 },
-                function (\Throwable $e) use ($outerPromise): void {
-                    if (! $outerPromise->isSettled()) {
-                        $outerPromise->reject($e);
+                function (\Throwable $e) use (
+                    $state,
+                    $outerPromise,
+                    &$attemptExecution,
+                ): void {
+                    if ($outerPromise->isCancelled()) {
+                        return;
+                    }
+
+                    if ($e instanceof ConnectionException && $state->attempt < $this->retryConfig->maxRetries) {
+                        $state->attempt++;
+                        $delay = $this->retryConfig->getDelay($state->attempt);
+
+                        $state->timerId = Loop::addTimer($delay, static function () use ($state, &$attemptExecution): void {
+                            $state->timerId = null;
+                            $attemptExecution();
+                        });
+                    } else {
+                        if (! $outerPromise->isSettled()) {
+                            $outerPromise->reject($e);
+                        }
                     }
                 }
             );
+        };
 
-            $outerPromise->onCancel(function () use ($innerPromise): void {
-                if (! $innerPromise->isSettled()) {
-                    $innerPromise->cancel();
-                }
-            });
-        }, function (\Throwable $e) use ($outerPromise): void {
-            if (! $outerPromise->isSettled()) {
-                $outerPromise->reject($e);
+        $outerPromise->onCancel(function () use ($state): void {
+            if ($state->timerId !== null) {
+                Loop::cancelTimer($state->timerId);
+                $state->timerId = null;
+            }
+            if ($state->activePromise !== null && ! $state->activePromise->isSettled()) {
+                $state->activePromise->cancel();
+                $state->activePromise = null;
             }
         });
 
-        $outerPromise->finally(function () use ($pool, &$connection): void {
-            if ($connection !== null) {
-                $pool->release($connection);
-            }
-        });
+        $attemptExecution();
 
-        $outerPromise->onCancel(function () use ($poolPromise): void {
-            if (! $poolPromise->isSettled()) {
-                $poolPromise->cancel();
-            }
-        });
-
-        return $outerPromise;
+        return Promise::propagateCancellation($outerPromise);
     }
 
     /**
@@ -252,6 +381,8 @@ final class RedisClient implements RedisClientInterface
         if ($this->pool === null) {
             return Promise::rejected(new ConnectionException('Client is closed'));
         }
+
+        $pool = $this->pool;
 
         $pipeline = new Pipeline();
         $callback($pipeline);
@@ -271,89 +402,153 @@ final class RedisClient implements RedisClientInterface
 
         /** @var Promise<array<int, mixed>> $outerPromise */
         $outerPromise = new Promise();
+        $state = new ExecutionState();
 
-        $pool = $this->pool;
-        $connection = null;
-
-        $poolPromise = $pool->get();
-        $poolPromise->then(function (Connection $conn) use ($commands, $wrappedCommands, &$connection, $outerPromise, $pool): void {
-            $connection = $conn;
-
+        $attemptExecution = function () use (
+            $commands,
+            $wrappedCommands,
+            $pool,
+            $state,
+            $outerPromise,
+            &$attemptExecution,
+        ): void {
             if ($outerPromise->isCancelled()) {
-                $pool->release($connection);
-
                 return;
             }
 
-            $innerPromise = $conn->enqueueBatch($wrappedCommands);
+            $state->activePromise = $pool->get();
 
-            $innerPromise->then(
-                function (array $results) use ($commands, $outerPromise): void {
-                    $execResults = array_pop($results);
-
-                    if ($execResults instanceof \Throwable) {
-                        if (! $outerPromise->isSettled()) {
-                            $outerPromise->reject($execResults);
-                        }
-
-                        return;
-                    }
-
-                    if (! \is_array($execResults)) {
-                        if (! $outerPromise->isSettled()) {
-                            $outerPromise->resolve($execResults ?? []);
-                        }
+            $state->activePromise->then(
+                function (Connection $conn) use (
+                    $commands,
+                    $wrappedCommands,
+                    $pool,
+                    $state,
+                    $outerPromise,
+                    &$attemptExecution,
+                ): void {
+                    if ($outerPromise->isCancelled()) {
+                        $pool->release($conn);
 
                         return;
                     }
 
-                    // Map the raw Redis responses through the specific command parsers
-                    $formatted = [];
-                    foreach ($execResults as $i => $raw) {
-                        if ($raw instanceof \Throwable) {
-                            $formatted[$i] = $raw; // Keep Redis execution errors as Throwables
-                        } elseif (isset($commands[$i])) {
-                            $formatted[$i] = $commands[$i]->parseResponse($raw);
-                        } else {
-                            $formatted[$i] = $raw;
-                        }
-                    }
+                    $state->activePromise = $conn->enqueueBatch($wrappedCommands);
 
-                    if (! $outerPromise->isSettled()) {
-                        $outerPromise->resolve($formatted);
-                    }
+                    $state->activePromise->then(
+                        function (array $results) use ($pool, $conn, $commands, $outerPromise): void {
+                            $pool->release($conn);
+
+                            if ($outerPromise->isCancelled()) {
+                                return;
+                            }
+
+                            $execResults = array_pop($results);
+
+                            if ($execResults instanceof \Throwable) {
+                                if (! $outerPromise->isSettled()) {
+                                    $outerPromise->reject($execResults);
+                                }
+
+                                return;
+                            }
+
+                            if (! \is_array($execResults)) {
+                                if (! $outerPromise->isSettled()) {
+                                    $outerPromise->resolve($execResults ?? []);
+                                }
+
+                                return;
+                            }
+
+                            $formatted = [];
+                            foreach ($execResults as $i => $raw) {
+                                if ($raw instanceof \Throwable) {
+                                    $formatted[$i] = $raw;
+                                } elseif (isset($commands[$i])) {
+                                    $formatted[$i] = $commands[$i]->parseResponse($raw);
+                                } else {
+                                    $formatted[$i] = $raw;
+                                }
+                            }
+
+                            if (! $outerPromise->isSettled()) {
+                                $outerPromise->resolve($formatted);
+                            }
+                        },
+                        function (\Throwable $e) use (
+                            $pool,
+                            $conn,
+                            $state,
+                            $outerPromise,
+                            &$attemptExecution,
+                        ): void {
+                            if ($e instanceof ConnectionException) {
+                                $pool->removeConnection($conn);
+                            } else {
+                                $pool->release($conn);
+                            }
+
+                            if ($outerPromise->isCancelled()) {
+                                return;
+                            }
+
+                            if ($e instanceof ConnectionException && $state->attempt < $this->retryConfig->maxRetries) {
+                                $state->attempt++;
+                                $delay = $this->retryConfig->getDelay($state->attempt);
+
+                                $state->timerId = Loop::addTimer($delay, static function () use ($state, &$attemptExecution): void {
+                                    $state->timerId = null;
+                                    $attemptExecution();
+                                });
+                            } else {
+                                if (! $outerPromise->isSettled()) {
+                                    $outerPromise->reject($e);
+                                }
+                            }
+                        }
+                    );
                 },
-                function (\Throwable $e) use ($outerPromise): void {
-                    if (! $outerPromise->isSettled()) {
-                        $outerPromise->reject($e);
+                function (\Throwable $e) use (
+                    $state,
+                    $outerPromise,
+                    &$attemptExecution,
+                ): void {
+                    if ($outerPromise->isCancelled()) {
+                        return;
+                    }
+
+                    if ($e instanceof ConnectionException && $state->attempt < $this->retryConfig->maxRetries) {
+                        $state->attempt++;
+                        $delay = $this->retryConfig->getDelay($state->attempt);
+
+                        $state->timerId = Loop::addTimer($delay, static function () use ($state, &$attemptExecution): void {
+                            $state->timerId = null;
+                            $attemptExecution();
+                        });
+                    } else {
+                        if (! $outerPromise->isSettled()) {
+                            $outerPromise->reject($e);
+                        }
                     }
                 }
             );
+        };
 
-            $outerPromise->onCancel(function () use ($innerPromise): void {
-                if (! $innerPromise->isSettled()) {
-                    $innerPromise->cancel();
-                }
-            });
-        }, function (\Throwable $e) use ($outerPromise): void {
-            if (! $outerPromise->isSettled()) {
-                $outerPromise->reject($e);
+        $outerPromise->onCancel(function () use ($state): void {
+            if ($state->timerId !== null) {
+                Loop::cancelTimer($state->timerId);
+                $state->timerId = null;
+            }
+            if ($state->activePromise !== null && ! $state->activePromise->isSettled()) {
+                $state->activePromise->cancel();
+                $state->activePromise = null;
             }
         });
 
-        $outerPromise->finally(function () use ($pool, &$connection): void {
-            if ($connection !== null) {
-                $pool->release($connection);
-            }
-        });
+        $attemptExecution();
 
-        $outerPromise->onCancel(function () use ($poolPromise): void {
-            if (! $poolPromise->isSettled()) {
-                $poolPromise->cancel();
-            }
-        });
-
-        return $outerPromise;
+        return Promise::propagateCancellation($outerPromise);
     }
 
     /**

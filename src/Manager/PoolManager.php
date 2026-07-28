@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace Hibla\Redis\Manager;
 
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\Connection\PingCommand;
 use Hibla\Redis\Enums\ConnectionState;
 use Hibla\Redis\Exceptions\PoolException;
+use Hibla\Redis\Exceptions\TimeoutException;
 use Hibla\Redis\Internals\Connection;
 use Hibla\Redis\ValueObjects\RedisConfig;
+use Hibla\Redis\ValueObjects\RetryConfig;
 use Hibla\Socket\Interfaces\ConnectorInterface;
 use InvalidArgumentException;
 use SplQueue;
@@ -54,6 +55,16 @@ final class PoolManager
 
     private bool $isGracefulShutdown = false;
 
+    /**
+     * True if the pool is currently in a background retry loop to reach minSize.
+     */
+    private bool $isHealing = false;
+
+    /**
+     * Number of failed attempts to reach minSize.
+     */
+    private int $healAttempt = 0;
+
     private int $idleTimeoutNanos;
 
     private int $maxLifetimeNanos;
@@ -61,6 +72,8 @@ final class PoolManager
     private PoolException $exhaustedException;
 
     private readonly RedisConfig $config;
+
+    private readonly RetryConfig $retryConfig;
 
     /**
      * @var Promise<void>|null
@@ -78,13 +91,16 @@ final class PoolManager
         int $maxLifetime = 3600,
         private readonly int $maxWaiters = 0,
         private readonly float $acquireTimeout = 10.0,
-        private readonly ?ConnectorInterface $connector = null
+        ?RetryConfig $retryConfig = null,
+        private readonly ?ConnectorInterface $connector = null,
     ) {
         $this->config = match (true) {
             $config instanceof RedisConfig => $config,
             \is_array($config) => RedisConfig::fromArray($config),
             \is_string($config) => RedisConfig::fromUri($config),
         };
+
+        $this->retryConfig = $retryConfig ?? new RetryConfig();
 
         if ($maxSize <= 0) {
             throw new InvalidArgumentException('Pool max size must be greater than 0');
@@ -134,6 +150,7 @@ final class PoolManager
                 'max_waiters' => $this->maxWaiters,
                 'acquire_timeout' => $this->acquireTimeout,
                 'is_graceful_shutdown' => $this->isGracefulShutdown,
+                'is_healing' => $this->isHealing,
             ];
         }
     }
@@ -173,8 +190,18 @@ final class PoolManager
             return Promise::resolved($connection);
         }
 
+        // Try to spawn a new connection directly. Wrapping it in a new promise
+        // ensures that creation failures properly reject without bypassing flow.
         if ($this->activeConnections < $this->maxSize) {
-            return $this->createNewConnection();
+            /** @var Promise<Connection> $promise */
+            $promise = new Promise();
+
+            $this->createNewConnection()->then(
+                static fn (Connection $conn) => $promise->resolve($conn),
+                static fn (Throwable $e) => $promise->reject($e)
+            );
+
+            return $promise;
         }
 
         if ($this->maxWaiters > 0 && $this->pendingWaitersCount >= $this->maxWaiters) {
@@ -244,6 +271,32 @@ final class PoolManager
     }
 
     /**
+     * Removes a connection from the pool and optionally schedules a background replenishment.
+     * Must be public so execution clients can actively discard tainted or broken sockets.
+     */
+    public function removeConnection(Connection $connection, bool $replenish = true): void
+    {
+        if (! $connection->isClosed()) {
+            $connection->close();
+        }
+
+        $connId = spl_object_id($connection);
+        unset(
+            $this->connectionLastUsed[$connId],
+            $this->connectionCreatedAt[$connId],
+            $this->activeConnectionsMap[$connId]
+        );
+
+        $this->activeConnections--;
+
+        if ($replenish && ! $this->isClosing && ! $this->isGracefulShutdown) {
+            $this->ensureMinConnections();
+        }
+
+        $this->checkShutdownComplete();
+    }
+
+    /**
      * @return PromiseInterface<void>
      */
     public function closeAsync(float $timeout = 0.0): PromiseInterface
@@ -302,6 +355,7 @@ final class PoolManager
 
         $this->isGracefulShutdown = false;
         $this->isClosing = true;
+        $this->isHealing = false;
 
         while (! $this->pool->isEmpty()) {
             $connection = $this->pool->dequeue();
@@ -528,56 +582,62 @@ final class PoolManager
         }
     }
 
+    /**
+     * Executes a background loop that ensures the active connections reach the minSize.
+     * Retries automatically using exponential backoff if creation fails.
+     */
     private function ensureMinConnections(): void
     {
         if ($this->isClosing || $this->isGracefulShutdown) {
             return;
         }
 
-        while ($this->activeConnections < $this->minSize) {
-            $this->createNewConnection()->then(
-                function (Connection $conn): void {
-                    $waiter = $this->dequeueActiveWaiter();
-                    if ($waiter !== null) {
-                        $waiter->resolve($conn);
-                    } else {
-                        if ($this->isClosing || $this->isGracefulShutdown) {
-                            $this->removeConnection($conn);
+        if ($this->activeConnections >= $this->minSize) {
+            $this->isHealing = false;
+            $this->healAttempt = 0;
 
-                            return;
-                        }
+            return;
+        }
 
-                        $connId = spl_object_id($conn);
-                        $this->connectionLastUsed[$connId] = (int) hrtime(true);
-                        unset($this->activeConnectionsMap[$connId]);
-                        $this->pool->enqueue($conn);
-                    }
-                },
-                fn () => null
+        if ($this->isHealing) {
+            return;
+        }
+
+        $this->isHealing = true;
+        $needed = $this->minSize - $this->activeConnections;
+        $promises = [];
+
+        for ($i = 0; $i < $needed; $i++) {
+            $promises[] = $this->createNewConnection()->then(
+                function (Connection $conn) {
+                    $this->release($conn);
+
+                    return $conn;
+                }
             );
         }
-    }
 
-    private function removeConnection(Connection $connection, bool $replenish = true): void
-    {
-        if (! $connection->isClosed()) {
-            $connection->close();
-        }
+        Promise::allSettled($promises)->then(function (): void {
+            $this->isHealing = false;
 
-        $connId = spl_object_id($connection);
-        unset(
-            $this->connectionLastUsed[$connId],
-            $this->connectionCreatedAt[$connId],
-            $this->activeConnectionsMap[$connId]
-        );
+            if ($this->isClosing || $this->isGracefulShutdown) {
+                return;
+            }
 
-        $this->activeConnections--;
+            if ($this->activeConnections >= $this->minSize) {
+                $this->healAttempt = 0;
 
-        if ($replenish && ! $this->isClosing && ! $this->isGracefulShutdown) {
-            $this->ensureMinConnections();
-        }
+                return;
+            }
 
-        $this->checkShutdownComplete();
+            $this->healAttempt++;
+
+            $delay = $this->retryConfig->getDelay($this->healAttempt);
+
+            Loop::addTimer($delay, function (): void {
+                $this->ensureMinConnections();
+            });
+        });
     }
 
     /**
