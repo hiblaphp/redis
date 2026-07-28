@@ -13,6 +13,7 @@ use Hibla\Redis\Command\Sets\SismemberCommand;
 use Hibla\Redis\Command\Sets\SmembersCommand;
 use Hibla\Redis\Command\Sets\SpopCommand;
 use Hibla\Redis\Command\Sets\SremCommand;
+use Hibla\Redis\Command\Sets\SscanCommand;
 use Hibla\Redis\Command\Sets\SunionCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
@@ -157,5 +158,32 @@ trait SetsCommandsTrait
         }
 
         return $this->executeCommand(new SdiffCommand($args));
+    }
+
+    /**
+     * Iterates members of a Set type.
+     *
+     * @param string $key The set key.
+     * @param string|int $cursor The cursor to start the scan from.
+     * @param string|null $match Glob-style pattern.
+     * @param int|null $count A hint for the amount of work to do.
+     *
+     * @return PromiseInterface<array{0: string, 1: array<int, string>}>
+     */
+    public function sscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): PromiseInterface
+    {
+        $args = [$key, (string) $cursor];
+
+        if ($match !== null) {
+            $args[] = 'MATCH';
+            $args[] = $match;
+        }
+
+        if ($count !== null) {
+            $args[] = 'COUNT';
+            $args[] = $count;
+        }
+
+        return $this->executeCommand(new SscanCommand($args));
     }
 }

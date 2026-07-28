@@ -13,6 +13,7 @@ use Hibla\Redis\Command\SortedSets\ZrangeCommand;
 use Hibla\Redis\Command\SortedSets\ZrankCommand;
 use Hibla\Redis\Command\SortedSets\ZremCommand;
 use Hibla\Redis\Command\SortedSets\ZrevrankCommand;
+use Hibla\Redis\Command\SortedSets\ZscanCommand;
 use Hibla\Redis\Command\SortedSets\ZscoreCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
@@ -189,5 +190,32 @@ trait SortedSetsPipelineTrait
         $args[] = $timeout;
 
         return $this->executeCommand(new BzpopmaxCommand($args));
+    }
+
+    /**
+     * Adds a ZSCAN command to the pipeline.
+     *
+     * @param string $key The sorted set key.
+     * @param string|int $cursor The cursor to start the scan from (use '0' for a new scan).
+     * @param string|null $match Glob-style pattern to match member names against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     *
+     * @return self For method chaining.
+     */
+    public function zscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): self
+    {
+        $args = [$key, (string) $cursor];
+
+        if ($match !== null) {
+            $args[] = 'MATCH';
+            $args[] = $match;
+        }
+
+        if ($count !== null) {
+            $args[] = 'COUNT';
+            $args[] = $count;
+        }
+
+        return $this->executeCommand(new ZscanCommand($args));
     }
 }

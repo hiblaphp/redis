@@ -14,6 +14,7 @@ use Hibla\Redis\Command\SortedSets\ZrangeCommand;
 use Hibla\Redis\Command\SortedSets\ZrankCommand;
 use Hibla\Redis\Command\SortedSets\ZremCommand;
 use Hibla\Redis\Command\SortedSets\ZrevrankCommand;
+use Hibla\Redis\Command\SortedSets\ZscanCommand;
 use Hibla\Redis\Command\SortedSets\ZscoreCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
@@ -190,5 +191,32 @@ trait SortedSetsCommandsTrait
         $args[] = $timeout;
 
         return $this->executeCommand(new BzpopmaxCommand($args));
+    }
+
+    /**
+     * Iterates members and scores of a Sorted Set type.
+     *
+     * @param string $key The sorted set key.
+     * @param string|int $cursor The cursor to start the scan from.
+     * @param string|null $match Glob-style pattern.
+     * @param int|null $count A hint for the amount of work to do.
+     *
+     * @return PromiseInterface<array{0: string, 1: array<int, string>}>
+     */
+    public function zscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): PromiseInterface
+    {
+        $args = [$key, (string) $cursor];
+
+        if ($match !== null) {
+            $args[] = 'MATCH';
+            $args[] = $match;
+        }
+
+        if ($count !== null) {
+            $args[] = 'COUNT';
+            $args[] = $count;
+        }
+
+        return $this->executeCommand(new ZscanCommand($args));
     }
 }

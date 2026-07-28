@@ -15,6 +15,7 @@ use Hibla\Redis\Command\Hashes\HlenCommand;
 use Hibla\Redis\Command\Hashes\HmgetCommand;
 use Hibla\Redis\Command\Hashes\HsetCommand;
 use Hibla\Redis\Command\Hashes\HvalsCommand;
+use Hibla\Redis\Command\Sets\SscanCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
 trait HashesPipelineTrait
@@ -180,5 +181,32 @@ trait HashesPipelineTrait
     public function hlen(string $key): self
     {
         return $this->executeCommand(new HlenCommand([$key]));
+    }
+
+    /**
+     * Adds an SSCAN command to the pipeline.
+     *
+     * @param string $key The set key.
+     * @param string|int $cursor The cursor to start the scan from (use '0' for a new scan).
+     * @param string|null $match Glob-style pattern to match member names against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     *
+     * @return self For method chaining.
+     */
+    public function sscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): self
+    {
+        $args = [$key, (string) $cursor];
+
+        if ($match !== null) {
+            $args[] = 'MATCH';
+            $args[] = $match;
+        }
+
+        if ($count !== null) {
+            $args[] = 'COUNT';
+            $args[] = $count;
+        }
+
+        return $this->executeCommand(new SscanCommand($args));
     }
 }

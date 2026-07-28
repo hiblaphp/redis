@@ -115,4 +115,16 @@ interface HashesCommandsInterface
      * @return PromiseInterface<int> Number of fields in the hash, or 0 when the key does not exist.
      */
     public function hlen(string $key): PromiseInterface;
+
+    /**
+     * Iterates fields and values of a Hash type.
+     *
+     * @param string $key The hash key.
+     * @param string|int $cursor The cursor to start the scan from.
+     * @param string|null $match Glob-style pattern.
+     * @param int|null $count A hint for the amount of work to do.
+     *
+     * @return PromiseInterface<array{0: string, 1: array<int, string>}>
+     */
+    public function hscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): PromiseInterface;
 }

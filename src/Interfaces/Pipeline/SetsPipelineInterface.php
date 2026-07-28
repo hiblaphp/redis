@@ -93,4 +93,16 @@ interface SetsPipelineInterface
      * @return self For method chaining.
      */
     public function sdiff(string|array $keys, string ...$moreKeys): self;
+
+    /**
+     * Adds an SSCAN command to the pipeline.
+     *
+     * @param string $key The set key.
+     * @param string|int $cursor The cursor to start the scan from.
+     * @param string|null $match Glob-style pattern.
+     * @param int|null $count A hint for the amount of work to do.
+     *
+     * @return self For method chaining.
+     */
+    public function sscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): self;
 }

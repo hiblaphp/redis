@@ -12,6 +12,7 @@ use Hibla\Redis\Command\Sets\SismemberCommand;
 use Hibla\Redis\Command\Sets\SmembersCommand;
 use Hibla\Redis\Command\Sets\SpopCommand;
 use Hibla\Redis\Command\Sets\SremCommand;
+use Hibla\Redis\Command\Sets\SscanCommand;
 use Hibla\Redis\Command\Sets\SunionCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
@@ -156,5 +157,32 @@ trait SetsPipelineTrait
         }
 
         return $this->executeCommand(new SdiffCommand($args));
+    }
+
+    /**
+     * Adds an SSCAN command to the pipeline.
+     *
+     * @param string $key The set key.
+     * @param string|int $cursor The cursor to start the scan from (use '0' for a new scan).
+     * @param string|null $match Glob-style pattern to match member names against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     *
+     * @return self For method chaining.
+     */
+    public function sscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): self
+    {
+        $args = [$key, (string) $cursor];
+
+        if ($match !== null) {
+            $args[] = 'MATCH';
+            $args[] = $match;
+        }
+
+        if ($count !== null) {
+            $args[] = 'COUNT';
+            $args[] = $count;
+        }
+
+        return $this->executeCommand(new SscanCommand($args));
     }
 }

@@ -14,6 +14,7 @@ use Hibla\Redis\Command\Hashes\HincrbyfloatCommand;
 use Hibla\Redis\Command\Hashes\HkeysCommand;
 use Hibla\Redis\Command\Hashes\HlenCommand;
 use Hibla\Redis\Command\Hashes\HmgetCommand;
+use Hibla\Redis\Command\Hashes\HscanCommand;
 use Hibla\Redis\Command\Hashes\HsetCommand;
 use Hibla\Redis\Command\Hashes\HvalsCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
@@ -181,5 +182,32 @@ trait HashesCommandsTrait
     public function hlen(string $key): PromiseInterface
     {
         return $this->executeCommand(new HlenCommand([$key]));
+    }
+
+    /**
+     * Iterates fields and values of a Hash type.
+     *
+     * @param string $key The hash key.
+     * @param string|int $cursor The cursor to start the scan from.
+     * @param string|null $match Glob-style pattern.
+     * @param int|null $count A hint for the amount of work to do.
+     *
+     * @return PromiseInterface<array{0: string, 1: array<int, string>}>
+     */
+    public function hscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): PromiseInterface
+    {
+        $args = [$key, (string) $cursor];
+
+        if ($match !== null) {
+            $args[] = 'MATCH';
+            $args[] = $match;
+        }
+
+        if ($count !== null) {
+            $args[] = 'COUNT';
+            $args[] = $count;
+        }
+
+        return $this->executeCommand(new HscanCommand($args));
     }
 }
