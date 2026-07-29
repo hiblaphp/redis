@@ -20,7 +20,7 @@ describe('RedisClient - ScanStream Cancellation', function (): void {
 
             $streamPromise->cancel();
 
-            expect(fn() => await($streamPromise))->toThrow(CancelledException::class);
+            expect(fn () => await($streamPromise))->toThrow(CancelledException::class);
 
             for ($attempt = 0; $attempt < 50; $attempt++) {
                 if ($client->stats['active_connections'] === 0) {

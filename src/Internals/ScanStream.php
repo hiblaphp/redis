@@ -73,9 +73,9 @@ final class ScanStream implements \IteratorAggregate
         }
     }
 
-   /**
-     * @inheritDoc
-     */
+    /**
+      * @inheritDoc
+      */
     public function getIterator(): \Generator
     {
         if (! $this->completed && $this->buffer->count() <= $this->fetchThreshold) {
@@ -87,7 +87,7 @@ final class ScanStream implements \IteratorAggregate
                 if ($this->error instanceof CancelledException) {
                     break;
                 }
-             
+
                 throw $this->error;
             }
 
