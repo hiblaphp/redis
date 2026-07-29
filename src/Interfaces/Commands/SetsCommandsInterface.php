@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Redis\Internals\ScanStream;
 
 interface SetsCommandsInterface
 {
@@ -107,4 +108,15 @@ interface SetsCommandsInterface
      * @return PromiseInterface<array{0: string, 1: array<int, string>}>
      */
     public function sscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): PromiseInterface;
+
+    /**
+     * Asynchronously streams members of a Set using SSCAN with automatic pre-fetching and backpressure.
+     *
+     * @param string $key The set key.
+     * @param string|null $match Glob-style pattern to match member names against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     *
+     * @return PromiseInterface<ScanStream<int, string>> Yields set members.
+     */
+    public function sscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface;
 }

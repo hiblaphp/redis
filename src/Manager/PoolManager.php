@@ -494,7 +494,7 @@ final class PoolManager
         );
 
         $promise->onCancel(function () use ($connPromise): void {
-            // ONLY decrement active connections if the underlying connection 
+            // ONLY decrement active connections if the underlying connection
             // attempt is actually successfully aborted before fulfilling.
             if (! $connPromise->isSettled()) {
                 $this->activeConnections--;

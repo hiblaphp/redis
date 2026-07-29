@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Traits\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Promise\Promise;
 use Hibla\Redis\Command\Keys\DelCommand;
 use Hibla\Redis\Command\Keys\ExistsCommand;
 use Hibla\Redis\Command\Keys\ExpireCommand;
@@ -16,6 +17,7 @@ use Hibla\Redis\Command\Keys\TtlCommand;
 use Hibla\Redis\Command\Keys\TypeCommand;
 use Hibla\Redis\Command\Keys\UnlinkCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Internals\ScanStream;
 
 trait KeysCommandsTrait
 {
@@ -169,5 +171,70 @@ trait KeysCommandsTrait
     public function persist(string $key): PromiseInterface
     {
         return $this->executeCommand(new PersistCommand([$key]));
+    }
+
+    /**
+     * Asynchronously streams keys using SCAN with automatic pre-fetching and backpressure.
+     *
+     * @param string|null $match Glob-style pattern to match keys against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     * @param string|null $type Filter keys by type.
+     *
+     * @return PromiseInterface<ScanStream<int, string>>
+     */
+    public function scanStream(?string $match = null, ?int $count = null, ?string $type = null): PromiseInterface
+    {
+        $fetcher = function (string $cursor) use ($match, $count, $type): PromiseInterface {
+            $args = [$cursor];
+            if ($match !== null) {
+                $args[] = 'MATCH';
+                $args[] = $match;
+            }
+            if ($count !== null) {
+                $args[] = 'COUNT';
+                $args[] = $count;
+            }
+            if ($type !== null) {
+                $args[] = 'TYPE';
+                $args[] = $type;
+            }
+
+            return $this->executeCommand(new ScanCommand($args));
+        };
+
+        $resultParser = static function (array $elements): array {
+            /** @var list<array{0: null, 1: string}> */
+            return array_map(static function (mixed $el): array {
+                $str = \is_scalar($el) || $el instanceof \Stringable ? (string) $el : '';
+
+                return [null, $str];
+            }, $elements);
+        };
+
+        /** @var Promise<ScanStream<int, string>> $streamPromise */
+        $streamPromise = new Promise();
+
+        $initialPromise = $fetcher('0');
+        $initialPromise->then(
+            function (array $result) use ($streamPromise, $fetcher, $resultParser): void {
+                if ($streamPromise->isCancelled()) {
+                    return;
+                }
+
+                $cursor = (string) $result[0];
+                $elements = $resultParser($result[1]);
+
+                $streamPromise->resolve(new ScanStream($fetcher, $resultParser, $cursor, $elements));
+            },
+            function (\Throwable $e) use ($streamPromise): void {
+                if (! $streamPromise->isSettled()) {
+                    $streamPromise->reject($e);
+                }
+            }
+        );
+
+        Promise::forwardCancellation($streamPromise, $initialPromise);
+
+        return $streamPromise;
     }
 }

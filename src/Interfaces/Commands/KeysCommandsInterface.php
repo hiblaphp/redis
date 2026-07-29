@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Redis\Internals\ScanStream;
 
 interface KeysCommandsInterface
 {
@@ -103,4 +104,15 @@ interface KeysCommandsInterface
      * @return PromiseInterface<int> Resolves to 1 if timeout was removed, 0 if key does not exist or has no associated timeout.
      */
     public function persist(string $key): PromiseInterface;
+
+    /**
+     * Asynchronously streams keys using SCAN with automatic pre-fetching and backpressure.
+     *
+     * @param string|null $match Glob-style pattern to match keys against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     * @param string|null $type Filter keys by type.
+     *
+     * @return PromiseInterface<ScanStream<int, string>>
+     */
+    public function scanStream(?string $match = null, ?int $count = null, ?string $type = null): PromiseInterface;
 }

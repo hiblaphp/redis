@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Traits\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Promise\Promise;
 use Hibla\Redis\Command\Sets\SaddCommand;
 use Hibla\Redis\Command\Sets\ScardCommand;
 use Hibla\Redis\Command\Sets\SdiffCommand;
@@ -16,6 +17,7 @@ use Hibla\Redis\Command\Sets\SremCommand;
 use Hibla\Redis\Command\Sets\SscanCommand;
 use Hibla\Redis\Command\Sets\SunionCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Internals\ScanStream;
 
 trait SetsCommandsTrait
 {
@@ -185,5 +187,66 @@ trait SetsCommandsTrait
         }
 
         return $this->executeCommand(new SscanCommand($args));
+    }
+
+    /**
+     * Asynchronously streams members of a Set using SSCAN.
+     *
+     * @param string $key The set key.
+     * @param string|null $match Glob-style pattern to match member names against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     *
+     * @return PromiseInterface<ScanStream<int, string>> Yields set members.
+     */
+    public function sscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface
+    {
+        $fetcher = function (string $cursor) use ($key, $match, $count): PromiseInterface {
+            $args = [$key, $cursor];
+            if ($match !== null) {
+                $args[] = 'MATCH';
+                $args[] = $match;
+            }
+            if ($count !== null) {
+                $args[] = 'COUNT';
+                $args[] = $count;
+            }
+
+            return $this->executeCommand(new SscanCommand($args));
+        };
+
+        $resultParser = static function (array $elements): array {
+            /** @var list<array{0: null, 1: string}> */
+            return array_map(static function (mixed $el): array {
+                $str = \is_scalar($el) || $el instanceof \Stringable ? (string) $el : '';
+
+                return [null, $str];
+            }, $elements);
+        };
+
+        /** @var Promise<ScanStream<int, string>> $streamPromise */
+        $streamPromise = new Promise();
+
+        $initialPromise = $fetcher('0');
+        $initialPromise->then(
+            function (array $result) use ($streamPromise, $fetcher, $resultParser): void {
+                if ($streamPromise->isCancelled()) {
+                    return;
+                }
+
+                $cursor = (string) $result[0];
+                $elements = $resultParser($result[1]);
+
+                $streamPromise->resolve(new ScanStream($fetcher, $resultParser, $cursor, $elements));
+            },
+            function (\Throwable $e) use ($streamPromise): void {
+                if (! $streamPromise->isSettled()) {
+                    $streamPromise->reject($e);
+                }
+            }
+        );
+
+        Promise::forwardCancellation($streamPromise, $initialPromise);
+
+        return $streamPromise;
     }
 }

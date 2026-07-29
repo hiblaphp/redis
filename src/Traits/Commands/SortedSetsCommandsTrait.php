@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Traits\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Promise\Promise;
 use Hibla\Redis\Command\SortedSets\BzpopmaxCommand;
 use Hibla\Redis\Command\SortedSets\BzpopminCommand;
 use Hibla\Redis\Command\SortedSets\ZaddCommand;
@@ -17,6 +18,7 @@ use Hibla\Redis\Command\SortedSets\ZrevrankCommand;
 use Hibla\Redis\Command\SortedSets\ZscanCommand;
 use Hibla\Redis\Command\SortedSets\ZscoreCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Internals\ScanStream;
 
 trait SortedSetsCommandsTrait
 {
@@ -218,5 +220,75 @@ trait SortedSetsCommandsTrait
         }
 
         return $this->executeCommand(new ZscanCommand($args));
+    }
+
+    /**
+     * Asynchronously streams members and scores of a Sorted Set using ZSCAN.
+     *
+     * @param string $key The sorted set key.
+     * @param string|null $match Glob-style pattern to match member names against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     *
+     * @return PromiseInterface<ScanStream<string, string>> Yields member => score pairs.
+     */
+    public function zscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface
+    {
+        $fetcher = function (string $cursor) use ($key, $match, $count): PromiseInterface {
+            $args = [$key, $cursor];
+            if ($match !== null) {
+                $args[] = 'MATCH';
+                $args[] = $match;
+            }
+            if ($count !== null) {
+                $args[] = 'COUNT';
+                $args[] = $count;
+            }
+
+            return $this->executeCommand(new ZscanCommand($args));
+        };
+
+        $resultParser = static function (array $elements): array {
+            $tuples = [];
+            $total = \count($elements);
+            for ($i = 0; $i < $total; $i += 2) {
+                if (isset($elements[$i + 1])) {
+                    $rawMember = $elements[$i];
+                    $rawScore = $elements[$i + 1];
+
+                    $member = \is_scalar($rawMember) || $rawMember instanceof \Stringable ? (string) $rawMember : '';
+                    $score = \is_scalar($rawScore) || $rawScore instanceof \Stringable ? (string) $rawScore : '0';
+
+                    $tuples[] = [$member, $score];
+                }
+            }
+
+            return $tuples;
+        };
+
+        /** @var Promise<ScanStream<string, string>> $streamPromise */
+        $streamPromise = new Promise();
+
+        $initialPromise = $fetcher('0');
+        $initialPromise->then(
+            function (array $result) use ($streamPromise, $fetcher, $resultParser): void {
+                if ($streamPromise->isCancelled()) {
+                    return;
+                }
+
+                $cursor = (string) $result[0];
+                $elements = $resultParser($result[1]);
+
+                $streamPromise->resolve(new ScanStream($fetcher, $resultParser, $cursor, $elements));
+            },
+            function (\Throwable $e) use ($streamPromise): void {
+                if (! $streamPromise->isSettled()) {
+                    $streamPromise->reject($e);
+                }
+            }
+        );
+
+        Promise::forwardCancellation($streamPromise, $initialPromise);
+
+        return $streamPromise;
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Redis\Internals\ScanStream;
 
 interface HashesCommandsInterface
 {
@@ -127,4 +128,15 @@ interface HashesCommandsInterface
      * @return PromiseInterface<array{0: string, 1: array<int, string>}>
      */
     public function hscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): PromiseInterface;
+
+    /**
+     * Asynchronously streams fields and values of a Hash using HSCAN with automatic pre-fetching and backpressure.
+     *
+     * @param string $key The hash key.
+     * @param string|null $match Glob-style pattern to match field names against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     *
+     * @return PromiseInterface<ScanStream<string, string>> Yields field => value pairs.
+     */
+    public function hscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface;
 }

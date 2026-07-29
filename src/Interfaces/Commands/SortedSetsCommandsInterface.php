@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
+use Hibla\Redis\Internals\ScanStream;
 
 interface SortedSetsCommandsInterface
 {
@@ -124,4 +125,15 @@ interface SortedSetsCommandsInterface
      * @return PromiseInterface<array{0: string, 1: array<int, string>}>
      */
     public function zscan(string $key, string|int $cursor = '0', ?string $match = null, ?int $count = null): PromiseInterface;
+
+    /**
+     * Asynchronously streams members and scores of a Sorted Set using ZSCAN with automatic pre-fetching and backpressure.
+     *
+     * @param string $key The sorted set key.
+     * @param string|null $match Glob-style pattern to match member names against.
+     * @param int|null $count A hint to Redis about how much work to do per scan iteration.
+     *
+     * @return PromiseInterface<ScanStream<string, string>> Yields member => score pairs.
+     */
+    public function zscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface;
 }
