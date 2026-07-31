@@ -18,7 +18,7 @@ use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Redis\ValueObjects\RetryConfig;
 
-final class RedisClusterClient implements RedisCommandsInterface, NodeClientInterface
+final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 {
     use RedisCommandsTrait;
 
