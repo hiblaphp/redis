@@ -8,7 +8,7 @@ use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Exceptions\RedisException;
-use Hibla\Redis\RedisClient;
+use Hibla\Redis\Interfaces\NodeClientInterface;
 
 final class ClusterTopology
 {
@@ -24,7 +24,7 @@ final class ClusterTopology
 
     /**
      * @param array<int, string> $seedUris
-     * @param \Closure(string): RedisClient $clientFactory
+     * @param \Closure(string): NodeClientInterface $clientFactory
      */
     public function __construct(
         private readonly array $seedUris,
@@ -99,7 +99,7 @@ final class ClusterTopology
 
         $uri = $nodes[$index];
 
-        /** @var RedisClient $client */
+        /** @var NodeClientInterface $client */
         $client = ($this->clientFactory)($uri);
 
         $cmd = new class ([]) extends AbstractCommand {
@@ -108,7 +108,7 @@ final class ClusterTopology
             public array $arguments = ['SLOTS'];
         };
 
-        /** @var PromiseInterface<mixed> $cmdPromise */
+        /** @var PromiseInterface<mixed>|null $cmdPromise */
         $cmdPromise = $client->executeCommand($cmd);
 
         Promise::forwardCancellation($promise, $cmdPromise);

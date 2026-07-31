@@ -12,12 +12,13 @@ use Hibla\Redis\Cluster\SlotCalculator;
 use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Interfaces\NodeClientInterface;
 use Hibla\Redis\Interfaces\RedisCommandsInterface;
 use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Redis\ValueObjects\RetryConfig;
 
-final class RedisClusterClient implements RedisCommandsInterface
+final class RedisClusterClient implements RedisCommandsInterface, NodeClientInterface
 {
     use RedisCommandsTrait;
 
@@ -82,7 +83,7 @@ final class RedisClusterClient implements RedisCommandsInterface
         foreach ($this->nodes as $nodeClient) {
             $promises[] = $nodeClient->closeAsync($timeout);
         }
-        
+
         $this->nodes = [];
 
         $closePromise = Promise::allSettled($promises)->then(function (): void {
