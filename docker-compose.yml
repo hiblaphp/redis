@@ -11,6 +11,55 @@ services:
       timeout: 3s
       retries: 5
 
+  redis_cluster:
+    image: redis:latest
+    ports:
+      - "7000:7000"
+      - "7001:7001"
+      - "7002:7002"
+    command: >
+      bash -c "
+        echo 'port 7000' > /tmp/7000.conf;
+        echo 'cluster-enabled yes' >> /tmp/7000.conf;
+        echo 'cluster-config-file nodes-7000.conf' >> /tmp/7000.conf;
+        echo 'cluster-node-timeout 5000' >> /tmp/7000.conf;
+        echo 'appendonly yes' >> /tmp/7000.conf;
+        echo 'protected-mode no' >> /tmp/7000.conf;
+        echo 'requirepass root_password' >> /tmp/7000.conf;
+        echo 'masterauth root_password' >> /tmp/7000.conf;
+        echo 'cluster-announce-ip 127.0.0.1' >> /tmp/7000.conf;
+        
+        echo 'port 7001' > /tmp/7001.conf;
+        echo 'cluster-enabled yes' >> /tmp/7001.conf;
+        echo 'cluster-config-file nodes-7001.conf' >> /tmp/7001.conf;
+        echo 'cluster-node-timeout 5000' >> /tmp/7001.conf;
+        echo 'appendonly yes' >> /tmp/7001.conf;
+        echo 'protected-mode no' >> /tmp/7001.conf;
+        echo 'requirepass root_password' >> /tmp/7001.conf;
+        echo 'masterauth root_password' >> /tmp/7001.conf;
+        echo 'cluster-announce-ip 127.0.0.1' >> /tmp/7001.conf;
+
+        echo 'port 7002' > /tmp/7002.conf;
+        echo 'cluster-enabled yes' >> /tmp/7002.conf;
+        echo 'cluster-config-file nodes-7002.conf' >> /tmp/7002.conf;
+        echo 'cluster-node-timeout 5000' >> /tmp/7002.conf;
+        echo 'appendonly yes' >> /tmp/7002.conf;
+        echo 'protected-mode no' >> /tmp/7002.conf;
+        echo 'requirepass root_password' >> /tmp/7002.conf;
+        echo 'masterauth root_password' >> /tmp/7002.conf;
+        echo 'cluster-announce-ip 127.0.0.1' >> /tmp/7002.conf;
+
+        redis-server /tmp/7000.conf &
+        redis-server /tmp/7001.conf &
+        redis-server /tmp/7002.conf &
+        
+        sleep 3;
+        
+        echo 'yes' | redis-cli -a root_password --cluster create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 --cluster-replicas 0;
+        
+        tail -f /dev/null
+      "
+
   redis_ssl:
     image: redis/redis-stack-server:latest
     ports:

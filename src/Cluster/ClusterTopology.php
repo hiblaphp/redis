@@ -85,7 +85,7 @@ final class ClusterTopology
      * @param array<int, string> $nodes
      * @param Promise<void> $promise
      */
-    private function tryDiscoverNode(array $nodes, int $index, Promise $promise, ?\Throwable $lastException): void
+   private function tryDiscoverNode(array $nodes, int $index, Promise $promise, ?\Throwable $lastException): void
     {
         if ($promise->isCancelled()) {
             return;
@@ -98,14 +98,14 @@ final class ClusterTopology
         }
 
         $uri = $nodes[$index];
-
+        
         /** @var NodeClientInterface $client */
         $client = ($this->clientFactory)($uri);
 
-        $cmd = new class ([]) extends AbstractCommand {
-            public string $id = 'CLUSTER';
-
-            public array $arguments = ['SLOTS'];
+        $cmd = new class (['SLOTS']) extends AbstractCommand {
+            public string $id {
+                get => 'CLUSTER';
+            }
         };
 
         /** @var PromiseInterface<mixed>|null $cmdPromise */

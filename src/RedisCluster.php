@@ -63,7 +63,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
             if ($discovery !== null) {
                 $discovery->then(
-                    fn () => $this->executeWithRouting(0, $command, $promise),
+                    fn() => $this->executeWithRouting(0, $command, $promise),
                     $promise->reject(...)
                 );
             }
@@ -86,8 +86,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
         $this->nodes = [];
 
-        $closePromise = Promise::allSettled($promises)->then(function (): void {
-        });
+        $closePromise = Promise::allSettled($promises)->then(function (): void {});
 
         return Promise::propagateCancellation($closePromise);
     }
@@ -161,7 +160,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
                         if ($discovery !== null) {
                             $discovery->then(
-                                fn () => $this->executeWithRouting($attempts + 1, $command, $promise),
+                                fn() => $this->executeWithRouting($attempts + 1, $command, $promise),
                                 $promise->reject(...)
                             );
                         }
@@ -179,16 +178,19 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
      * @template TReturn
      *
      * @param CommandInterface<TReturn> $command
-     * @param Promise<TReturn> $promise
+     * @param Promise<TReturn>          $promise
      */
     private function executeAskRetry(string $nodeUri, CommandInterface $command, Promise $promise, int $attempts): void
     {
         $client = $this->getNodeClient($nodeUri);
 
         $pipePromise = $client->pipeline(function ($pipe) use ($command) {
-            $askingCmd = new class ([]) extends AbstractCommand {
-                public string $id = 'ASKING';
+            $askingCmd = new class([]) extends AbstractCommand {
+                public string $id {
+                    get => 'ASKING';
+                }
             };
+
             $pipe->executeCommand($askingCmd);
             $pipe->executeCommand($command);
         });
