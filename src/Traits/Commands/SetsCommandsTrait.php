@@ -17,6 +17,7 @@ use Hibla\Redis\Command\Sets\SremCommand;
 use Hibla\Redis\Command\Sets\SscanCommand;
 use Hibla\Redis\Command\Sets\SunionCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 use Hibla\Redis\Internals\ScanStream;
 
 trait SetsCommandsTrait
@@ -196,7 +197,7 @@ trait SetsCommandsTrait
      * @param string|null $match Glob-style pattern to match member names against.
      * @param int|null $count A hint to Redis about how much work to do per scan iteration.
      *
-     * @return PromiseInterface<ScanStream<int, string>> Yields set members.
+     * @return PromiseInterface<ScanStreamInterface<int, string>> Yields set members.
      */
     public function sscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface
     {

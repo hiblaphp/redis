@@ -19,6 +19,7 @@ use Hibla\Redis\Command\Hashes\HscanCommand;
 use Hibla\Redis\Command\Hashes\HsetCommand;
 use Hibla\Redis\Command\Hashes\HvalsCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 use Hibla\Redis\Internals\ScanStream;
 
 trait HashesCommandsTrait
@@ -220,7 +221,7 @@ trait HashesCommandsTrait
      * @param string|null $match Glob-style pattern to match field names against.
      * @param int|null $count A hint to Redis about how much work to do per scan iteration.
      *
-     * @return PromiseInterface<ScanStream<string, string>> Yields field => value pairs.
+     * @return PromiseInterface<ScanStreamInterface<string, string>> Yields field => value pairs.
      */
     public function hscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface
     {

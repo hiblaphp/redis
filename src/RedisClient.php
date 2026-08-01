@@ -12,6 +12,7 @@ use Hibla\Redis\Command\Transactions\ExecCommand;
 use Hibla\Redis\Command\Transactions\MultiCommand;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Interfaces\NodeClientInterface;
 use Hibla\Redis\Interfaces\RedisClientInterface;
 use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\Internals\CommandValidator;
@@ -30,7 +31,7 @@ use Hibla\Socket\Interfaces\ConnectorInterface;
 use function Hibla\async;
 use function Hibla\await;
 
-final class RedisClient implements RedisClientInterface
+final class RedisClient implements RedisClientInterface, NodeClientInterface
 {
     use RedisCommandsTrait;
 

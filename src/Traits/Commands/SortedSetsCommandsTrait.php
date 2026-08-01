@@ -18,6 +18,7 @@ use Hibla\Redis\Command\SortedSets\ZrevrankCommand;
 use Hibla\Redis\Command\SortedSets\ZscanCommand;
 use Hibla\Redis\Command\SortedSets\ZscoreCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 use Hibla\Redis\Internals\ScanStream;
 
 trait SortedSetsCommandsTrait
@@ -229,7 +230,7 @@ trait SortedSetsCommandsTrait
      * @param string|null $match Glob-style pattern to match member names against.
      * @param int|null $count A hint to Redis about how much work to do per scan iteration.
      *
-     * @return PromiseInterface<ScanStream<string, string>> Yields member => score pairs.
+     * @return PromiseInterface<ScanStreamInterface<string, string>> Yields member => score pairs.
      */
     public function zscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface
     {

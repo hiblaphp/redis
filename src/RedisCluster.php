@@ -15,6 +15,7 @@ use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\NodeClientInterface;
 use Hibla\Redis\Interfaces\RedisCommandsInterface;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 use Hibla\Redis\Internals\ScanStream;
 use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 use Hibla\Redis\ValueObjects\RedisConfig;
@@ -79,7 +80,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
     /**
      * Scans all master nodes in the cluster concurrently.
      *
-     * @return PromiseInterface<ClusterScanStream<int, string>>
+     * @return PromiseInterface<ScanStreamInterface<int, string>>
      */
     public function scanStream(?string $match = null, ?int $count = null, ?string $type = null): PromiseInterface
     {
@@ -91,12 +92,14 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
             Promise::forwardCancellation($promise, $discovery);
 
-            $discovery->then(
-                function () use ($match, $count, $type, $promise) {
-                    $this->createClusterScanStream($match, $count, $type, $promise);
-                },
-                $promise->reject(...)
-            );
+            if ($discovery !== null) {
+                $discovery->then(
+                    function () use ($match, $count, $type, $promise) {
+                        $this->createClusterScanStream($match, $count, $type, $promise);
+                    },
+                    $promise->reject(...)
+                );
+            }
         } else {
             $this->createClusterScanStream($match, $count, $type, $promise);
         }
@@ -105,8 +108,8 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
     }
 
     /**
-     * @param Promise<ClusterScanStream<int, string>> $promise
-     */
+       * @param Promise<ScanStreamInterface<int, string>> $promise
+      */
     private function createClusterScanStream(?string $match, ?int $count, ?string $type, Promise $promise): void
     {
         if ($promise->isCancelled()) {
@@ -124,12 +127,15 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
         /** @var PromiseInterface<array<int, ScanStream<int, string>>> $allPromise */
         $allPromise = Promise::all($streamPromises);
 
-        Promise::forwardCancellation($promise, $allPromise);
+        $forwardTarget = $allPromise;
+        Promise::forwardCancellation($promise, $forwardTarget);
 
         $allPromise->then(
             function (array $streams) use ($promise) {
                 if (! $promise->isCancelled()) {
-                    $promise->resolve(new ClusterScanStream(array_values($streams)));
+                    $streamsArray = array_values($streams);
+
+                    $promise->resolve(new ClusterScanStream($streamsArray));
                 }
             },
             $promise->reject(...)

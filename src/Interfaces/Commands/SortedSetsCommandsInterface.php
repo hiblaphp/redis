@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
-use Hibla\Redis\Internals\ScanStream;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 
 interface SortedSetsCommandsInterface
 {
@@ -133,7 +133,7 @@ interface SortedSetsCommandsInterface
      * @param string|null $match Glob-style pattern to match member names against.
      * @param int|null $count A hint to Redis about how much work to do per scan iteration.
      *
-     * @return PromiseInterface<ScanStream<string, string>> Yields member => score pairs.
+     * @return PromiseInterface<ScanStreamInterface<string, string>> Yields member => score pairs.
      */
     public function zscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface;
 }

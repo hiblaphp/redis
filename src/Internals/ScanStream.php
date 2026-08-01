@@ -7,6 +7,7 @@ namespace Hibla\Redis\Internals;
 use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 use SplQueue;
 
 use function Hibla\await;
@@ -17,9 +18,9 @@ use function Hibla\await;
  * @template TKey
  * @template TValue
  *
- * @implements \IteratorAggregate<TKey, TValue>
+ * @implements ScanStreamInterface<TKey, TValue>
  */
-final class ScanStream implements \IteratorAggregate
+final class ScanStream implements ScanStreamInterface
 {
     /**
      * @var SplQueue<array{0: TKey|null, 1: TValue}>

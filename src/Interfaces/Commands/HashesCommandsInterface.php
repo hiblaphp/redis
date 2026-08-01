@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
-use Hibla\Redis\Internals\ScanStream;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 
 interface HashesCommandsInterface
 {
@@ -136,7 +136,7 @@ interface HashesCommandsInterface
      * @param string|null $match Glob-style pattern to match field names against.
      * @param int|null $count A hint to Redis about how much work to do per scan iteration.
      *
-     * @return PromiseInterface<ScanStream<string, string>> Yields field => value pairs.
+     * @return PromiseInterface<ScanStreamInterface<string, string>> Yields field => value pairs.
      */
     public function hscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface;
 }

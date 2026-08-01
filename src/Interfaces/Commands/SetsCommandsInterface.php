@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
-use Hibla\Redis\Internals\ScanStream;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 
 interface SetsCommandsInterface
 {
@@ -116,7 +116,7 @@ interface SetsCommandsInterface
      * @param string|null $match Glob-style pattern to match member names against.
      * @param int|null $count A hint to Redis about how much work to do per scan iteration.
      *
-     * @return PromiseInterface<ScanStream<int, string>> Yields set members.
+     * @return PromiseInterface<ScanStreamInterface<int, string>> Yields set members.
      */
     public function sscanStream(string $key, ?string $match = null, ?int $count = null): PromiseInterface;
 }

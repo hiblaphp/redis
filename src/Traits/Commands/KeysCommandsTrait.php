@@ -17,6 +17,7 @@ use Hibla\Redis\Command\Keys\TtlCommand;
 use Hibla\Redis\Command\Keys\TypeCommand;
 use Hibla\Redis\Command\Keys\UnlinkCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 use Hibla\Redis\Internals\ScanStream;
 
 trait KeysCommandsTrait
@@ -180,7 +181,7 @@ trait KeysCommandsTrait
      * @param int|null $count A hint to Redis about how much work to do per scan iteration.
      * @param string|null $type Filter keys by type.
      *
-     * @return PromiseInterface<ScanStream<int, string>>
+     * @return PromiseInterface<ScanStreamInterface<int, string>>
      */
     public function scanStream(?string $match = null, ?int $count = null, ?string $type = null): PromiseInterface
     {

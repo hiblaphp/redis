@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces\Commands;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
-use Hibla\Redis\Internals\ScanStream;
+use Hibla\Redis\Interfaces\ScanStreamInterface;
 
 interface KeysCommandsInterface
 {
@@ -112,7 +112,7 @@ interface KeysCommandsInterface
      * @param int|null $count A hint to Redis about how much work to do per scan iteration.
      * @param string|null $type Filter keys by type.
      *
-     * @return PromiseInterface<ScanStream<int, string>>
+     * @return PromiseInterface<ScanStreamInterface<int, string>>
      */
     public function scanStream(?string $match = null, ?int $count = null, ?string $type = null): PromiseInterface;
 }
