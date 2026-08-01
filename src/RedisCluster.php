@@ -6,6 +6,7 @@ namespace Hibla\Redis;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
+use Hibla\Redis\Cluster\ClusterScanStream;
 use Hibla\Redis\Cluster\ClusterTopology;
 use Hibla\Redis\Cluster\KeyExtractor;
 use Hibla\Redis\Cluster\SlotCalculator;
@@ -14,6 +15,7 @@ use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\NodeClientInterface;
 use Hibla\Redis\Interfaces\RedisCommandsInterface;
+use Hibla\Redis\Internals\ScanStream;
 use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Redis\ValueObjects\RetryConfig;
@@ -63,7 +65,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
             if ($discovery !== null) {
                 $discovery->then(
-                    fn() => $this->executeWithRouting(0, $command, $promise),
+                    fn () => $this->executeWithRouting(0, $command, $promise),
                     $promise->reject(...)
                 );
             }
@@ -72,6 +74,66 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
         }
 
         return Promise::propagateCancellation($promise);
+    }
+
+    /**
+     * Scans all master nodes in the cluster concurrently.
+     *
+     * @return PromiseInterface<ClusterScanStream<int, string>>
+     */
+    public function scanStream(?string $match = null, ?int $count = null, ?string $type = null): PromiseInterface
+    {
+        /** @var Promise<ClusterScanStream<int, string>> $promise */
+        $promise = new Promise();
+
+        if (! $this->topology->isReady()) {
+            $discovery = $this->topology->discover();
+
+            Promise::forwardCancellation($promise, $discovery);
+
+            $discovery->then(
+                function () use ($match, $count, $type, $promise) {
+                    $this->createClusterScanStream($match, $count, $type, $promise);
+                },
+                $promise->reject(...)
+            );
+        } else {
+            $this->createClusterScanStream($match, $count, $type, $promise);
+        }
+
+        return Promise::propagateCancellation($promise);
+    }
+
+    /**
+     * @param Promise<ClusterScanStream<int, string>> $promise
+     */
+    private function createClusterScanStream(?string $match, ?int $count, ?string $type, Promise $promise): void
+    {
+        if ($promise->isCancelled()) {
+            return;
+        }
+
+        $masterNodes = $this->topology->allMasterNodes;
+        $streamPromises = [];
+
+        foreach ($masterNodes as $nodeUri) {
+            $client = $this->getNodeClient($nodeUri);
+            $streamPromises[] = $client->scanStream($match, $count, $type);
+        }
+
+        /** @var PromiseInterface<array<int, ScanStream<int, string>>> $allPromise */
+        $allPromise = Promise::all($streamPromises);
+
+        Promise::forwardCancellation($promise, $allPromise);
+
+        $allPromise->then(
+            function (array $streams) use ($promise) {
+                if (! $promise->isCancelled()) {
+                    $promise->resolve(new ClusterScanStream(array_values($streams)));
+                }
+            },
+            $promise->reject(...)
+        );
     }
 
     /**
@@ -86,7 +148,8 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
         $this->nodes = [];
 
-        $closePromise = Promise::allSettled($promises)->then(function (): void {});
+        $closePromise = Promise::allSettled($promises)->then(function (): void {
+        });
 
         return Promise::propagateCancellation($closePromise);
     }
@@ -160,7 +223,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
                         if ($discovery !== null) {
                             $discovery->then(
-                                fn() => $this->executeWithRouting($attempts + 1, $command, $promise),
+                                fn () => $this->executeWithRouting($attempts + 1, $command, $promise),
                                 $promise->reject(...)
                             );
                         }
@@ -178,14 +241,14 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
      * @template TReturn
      *
      * @param CommandInterface<TReturn> $command
-     * @param Promise<TReturn>          $promise
+     * @param Promise<TReturn> $promise
      */
     private function executeAskRetry(string $nodeUri, CommandInterface $command, Promise $promise, int $attempts): void
     {
         $client = $this->getNodeClient($nodeUri);
 
         $pipePromise = $client->pipeline(function ($pipe) use ($command) {
-            $askingCmd = new class([]) extends AbstractCommand {
+            $askingCmd = new class ([]) extends AbstractCommand {
                 public string $id {
                     get => 'ASKING';
                 }

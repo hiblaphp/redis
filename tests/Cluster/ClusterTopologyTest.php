@@ -31,10 +31,12 @@ describe('ClusterTopology', function (): void {
         $clientMock = Mockery::mock(NodeClientInterface::class);
         $clientMock->shouldReceive('executeCommand')
             ->once()
-            ->andReturn(Promise::resolved($clusterSlotsResponse));
+            ->andReturn(Promise::resolved($clusterSlotsResponse))
+        ;
         $clientMock->shouldReceive('closeAsync')
             ->once()
-            ->andReturn(Promise::resolved());
+            ->andReturn(Promise::resolved())
+        ;
 
         $topology = new ClusterTopology(
             ['127.0.0.1:7000'],
@@ -47,17 +49,20 @@ describe('ClusterTopology', function (): void {
             ->and($topology->getNodeForSlot(0))->toBe('127.0.0.1:7000')
             ->and($topology->getNodeForSlot(5460))->toBe('127.0.0.1:7000')
             ->and($topology->getNodeForSlot(5461))->toBe('127.0.0.1:7001')
-            ->and($topology->getNodeForSlot(12000))->toBe('127.0.0.1:7002');
+            ->and($topology->getNodeForSlot(12000))->toBe('127.0.0.1:7002')
+        ;
     });
 
     it('handles malformed or unexpected CLUSTER SLOTS responses gracefully', function (mixed $invalidSlotsPayload): void {
         $clientMock = Mockery::mock(NodeClientInterface::class);
         $clientMock->shouldReceive('executeCommand')
             ->once()
-            ->andReturn(Promise::resolved($invalidSlotsPayload));
+            ->andReturn(Promise::resolved($invalidSlotsPayload))
+        ;
         $clientMock->shouldReceive('closeAsync')
             ->once()
-            ->andReturn(Promise::resolved());
+            ->andReturn(Promise::resolved())
+        ;
 
         $topology = new ClusterTopology(['127.0.0.1:7000'], fn () => $clientMock);
 
@@ -78,7 +83,8 @@ describe('ClusterTopology', function (): void {
         $clientMock->shouldReceive('executeCommand')
             ->andReturn(Promise::resolved([
                 [500, 500, ['127.0.0.1', 7000]],
-            ]));
+            ]))
+        ;
         $clientMock->shouldReceive('closeAsync')->andReturn(Promise::resolved());
 
         $topology = new ClusterTopology(['127.0.0.1:7000'], fn () => $clientMock);
@@ -111,20 +117,24 @@ describe('ClusterTopology', function (): void {
         $failingClient = Mockery::mock(NodeClientInterface::class);
         $failingClient->shouldReceive('executeCommand')
             ->once()
-            ->andReturn(Promise::rejected(new RedisException('Connection refused')));
+            ->andReturn(Promise::rejected(new RedisException('Connection refused')))
+        ;
         $failingClient->shouldReceive('closeAsync')
             ->once()
-            ->andReturn(Promise::resolved());
+            ->andReturn(Promise::resolved())
+        ;
 
         $successfulClient = Mockery::mock(NodeClientInterface::class);
         $successfulClient->shouldReceive('executeCommand')
             ->once()
             ->andReturn(Promise::resolved([
                 [0, 16383, ['127.0.0.1', 7001]],
-            ]));
+            ]))
+        ;
         $successfulClient->shouldReceive('closeAsync')
             ->once()
-            ->andReturn(Promise::resolved());
+            ->andReturn(Promise::resolved())
+        ;
 
         $topology = new ClusterTopology(
             ['127.0.0.1:7000', '127.0.0.1:7001'],
@@ -134,15 +144,18 @@ describe('ClusterTopology', function (): void {
         await($topology->discover());
 
         expect($topology->isReady())->toBeTrue()
-            ->and($topology->getNodeForSlot(100))->toBe('127.0.0.1:7001');
+            ->and($topology->getNodeForSlot(100))->toBe('127.0.0.1:7001')
+        ;
     });
 
     it('rejects with RedisException if all seed nodes fail', function (): void {
         $failingClient = Mockery::mock(NodeClientInterface::class);
         $failingClient->shouldReceive('executeCommand')
-            ->andReturn(Promise::rejected(new RedisException('Connection refused')));
+            ->andReturn(Promise::rejected(new RedisException('Connection refused')))
+        ;
         $failingClient->shouldReceive('closeAsync')
-            ->andReturn(Promise::resolved());
+            ->andReturn(Promise::resolved())
+        ;
 
         $topology = new ClusterTopology(
             ['127.0.0.1:7000', '127.0.0.1:7001'],
@@ -150,7 +163,8 @@ describe('ClusterTopology', function (): void {
         );
 
         expect(fn () => await($topology->discover()))
-            ->toThrow(RedisException::class, 'Failed to discover cluster topology');
+            ->toThrow(RedisException::class, 'Failed to discover cluster topology')
+        ;
     });
 
     it('prevents concurrent discovery calls (Thundering Herd protection)', function (): void {
@@ -159,10 +173,12 @@ describe('ClusterTopology', function (): void {
             ->once()
             ->andReturn(Promise::resolved([
                 [0, 16383, ['127.0.0.1', 7000]],
-            ]));
+            ]))
+        ;
         $clientMock->shouldReceive('closeAsync')
             ->once()
-            ->andReturn(Promise::resolved());
+            ->andReturn(Promise::resolved())
+        ;
 
         $topology = new ClusterTopology(
             ['127.0.0.1:7000'],
@@ -184,9 +200,11 @@ describe('ClusterTopology', function (): void {
         $clientMock = Mockery::mock(NodeClientInterface::class);
         $clientMock->shouldReceive('executeCommand')
             ->once()
-            ->andReturn($cmdPromise);
+            ->andReturn($cmdPromise)
+        ;
         $clientMock->shouldReceive('closeAsync')
-            ->andReturn(Promise::resolved());
+            ->andReturn(Promise::resolved())
+        ;
 
         $topology = new ClusterTopology(
             ['127.0.0.1:7000'],

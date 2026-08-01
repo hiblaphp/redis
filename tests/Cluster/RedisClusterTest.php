@@ -4,48 +4,23 @@ declare(strict_types=1);
 
 namespace Tests\Client;
 
+use Hibla\Promise\Promise;
 use Hibla\Redis\RedisCluster;
 
 use function Hibla\await;
 
 beforeEach(function (): void {
-    $host = getenv('REDIS_CLUSTER_HOST') !== false ? (string) getenv('REDIS_CLUSTER_HOST') : '127.0.0.1';
-    $port = getenv('REDIS_CLUSTER_PORT') !== false ? (int) getenv('REDIS_CLUSTER_PORT') : 7000;
-
-    $socket = @fsockopen($host, $port, $errno, $errstr, 0.2);
-    if ($socket === false) {
-        $this->markTestSkipped("Redis Cluster server is not running on {$host}:{$port}");
-    } else {
-        fclose($socket);
-    }
+    skipIfClusterNotRunning($this);
 });
 
-function getClusterSeedUris(): array
-{
-    $host = getenv('REDIS_CLUSTER_HOST') !== false ? (string) getenv('REDIS_CLUSTER_HOST') : '127.0.0.1';
-    $port = getenv('REDIS_CLUSTER_PORT') !== false ? (int) getenv('REDIS_CLUSTER_PORT') : 7000;
-
-    return ["{$host}:{$port}"];
-}
-
-function getClusterOptions(): array
-{
-    $password = getenv('REDIS_CLUSTER_PASSWORD') !== false
-        ? (string) getenv('REDIS_CLUSTER_PASSWORD')
-        : (getenv('REDIS_PASSWORD') !== false ? (string) getenv('REDIS_PASSWORD') : 'root_password');
-
-    return [
-        'password' => $password,
-    ];
-}
-
-describe('RedisCluster Real Server Integration', function (): void {
-    it('discovers cluster topology and responds to PING', function (): void {
+describe('RedisCluster Real Server Integration & Edge Cases', function (): void {
+    it('discovers cluster topology and responds to keyless commands (PING, ECHO)', function (): void {
         $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
 
         try {
-            $pong = await($cluster->ping());
-            expect($pong)->toBe('PONG');
+            expect(await($cluster->ping()))->toBe('PONG')
+                ->and(await($cluster->ping('cluster_echo')))->toBe('cluster_echo')
+            ;
         } finally {
             $cluster->close();
         }
@@ -61,13 +36,43 @@ describe('RedisCluster Real Server Integration', function (): void {
             }
 
             foreach ($keysAndValues as $key => $value) {
-                $setResult = await($cluster->set($key, $value));
-                expect($setResult)->toBe('OK');
+                expect(await($cluster->set($key, $value)))->toBe('OK');
             }
 
             foreach ($keysAndValues as $key => $expectedValue) {
-                $actualValue = await($cluster->get($key));
-                expect($actualValue)->toBe($expectedValue);
+                expect(await($cluster->get($key)))->toBe($expectedValue);
+            }
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('handles high volume concurrent commands dispatched via Promise::all across all shards', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $promises = [];
+            $expectedMap = [];
+
+            for ($i = 0; $i < 100; $i++) {
+                $k = "concurrent_cluster_key_{$i}_" . uniqid();
+                $v = "concurrent_val_{$i}";
+                $expectedMap[$k] = $v;
+
+                $promises[] = $cluster->set($k, $v);
+            }
+
+            await(Promise::all($promises));
+
+            $getPromises = [];
+            foreach (array_keys($expectedMap) as $k) {
+                $getPromises[$k] = $cluster->get($k);
+            }
+
+            $results = await(Promise::all($getPromises));
+
+            foreach ($expectedMap as $k => $v) {
+                expect($results[$k])->toBe($v);
             }
         } finally {
             $cluster->close();
@@ -87,6 +92,53 @@ describe('RedisCluster Real Server Integration', function (): void {
 
             $values = await($cluster->mget("{{$tag}}:name", "{{$tag}}:email"));
             expect($values)->toBe(['Alice', 'alice@example.com']);
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('executes Lua scripts (EVAL / EVALSHA) routed to the correct cluster node', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $tag = 'script_tag_' . uniqid();
+            $key = "{{$tag}}:item";
+            await($cluster->set($key, '100'));
+
+            $script = "return redis.call('INCRBY', KEYS[1], ARGV[1])";
+            $res = await($cluster->eval($script, [$key], [50]));
+
+            expect($res)->toBe(150);
+            expect(await($cluster->get($key)))->toBe('150');
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('streams keys from all cluster master nodes concurrently via scanStream()', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $prefix = 'scan_cluster_' . uniqid() . '_';
+            $keys = [];
+
+            for ($i = 0; $i < 40; $i++) {
+                $k = $prefix . $i;
+                $keys[] = $k;
+                await($cluster->set($k, "val_{$i}"));
+            }
+
+            $stream = await($cluster->scanStream($prefix . '*'));
+            $foundKeys = [];
+
+            foreach ($stream as $key) {
+                $foundKeys[] = $key;
+            }
+
+            sort($foundKeys);
+            sort($keys);
+
+            expect($foundKeys)->toBe($keys);
         } finally {
             $cluster->close();
         }

@@ -10,6 +10,9 @@ use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Interfaces\NodeClientInterface;
 
+/**
+ * @internal
+ */
 final class ClusterTopology
 {
     /**
@@ -30,6 +33,19 @@ final class ClusterTopology
         private readonly array $seedUris,
         private readonly \Closure $clientFactory
     ) {
+    }
+
+    /**
+     * @var array<int, string>
+     */
+    public array $allMasterNodes {
+        get {
+            if ($this->slots === []) {
+                return $this->seedUris;
+            }
+
+            return array_values(array_unique($this->slots));
+        }
     }
 
     public function isReady(): bool
@@ -63,7 +79,8 @@ final class ClusterTopology
     public function discover(): PromiseInterface
     {
         if ($this->discoveryPromise !== null) {
-            return $this->discoveryPromise;
+            // Return an uninterruptible wrapper so one caller can't cancel it for everyone else
+            return Promise::uninterruptible($this->discoveryPromise);
         }
 
         /** @var Promise<void> $promise */
@@ -78,14 +95,14 @@ final class ClusterTopology
             $this->discoveryPromise = null;
         });
 
-        return Promise::propagateCancellation($promise);
+        return Promise::uninterruptible($promise);
     }
 
     /**
      * @param array<int, string> $nodes
      * @param Promise<void> $promise
      */
-   private function tryDiscoverNode(array $nodes, int $index, Promise $promise, ?\Throwable $lastException): void
+    private function tryDiscoverNode(array $nodes, int $index, Promise $promise, ?\Throwable $lastException): void
     {
         if ($promise->isCancelled()) {
             return;
@@ -98,7 +115,7 @@ final class ClusterTopology
         }
 
         $uri = $nodes[$index];
-        
+
         /** @var NodeClientInterface $client */
         $client = ($this->clientFactory)($uri);
 
@@ -108,7 +125,6 @@ final class ClusterTopology
             }
         };
 
-        /** @var PromiseInterface<mixed>|null $cmdPromise */
         $cmdPromise = $client->executeCommand($cmd);
 
         Promise::forwardCancellation($promise, $cmdPromise);

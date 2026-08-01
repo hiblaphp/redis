@@ -41,7 +41,7 @@ final class KeyExtractor
             $stringArgs = array_map(static fn (mixed $a) => \is_scalar($a) || $a instanceof \Stringable ? strtoupper((string) $a) : '', $args);
             $streamsIndex = array_search('STREAMS', $stringArgs, true);
 
-            if ($streamsIndex !== false && isset($args[$streamsIndex + 1])) {
+            if (\is_int($streamsIndex) && isset($args[$streamsIndex + 1])) {
                 $key = $args[$streamsIndex + 1];
 
                 return \is_scalar($key) || $key instanceof \Stringable ? (string) $key : null;

@@ -80,3 +80,35 @@ function createIsolatedCleanClient(int $maxConnections = 10): RedisClient
 
     return $client;
 }
+
+function getClusterSeedUris(): array
+{
+    $host = getenv('REDIS_CLUSTER_HOST') !== false ? (string) getenv('REDIS_CLUSTER_HOST') : '127.0.0.1';
+    $port = getenv('REDIS_CLUSTER_PORT') !== false ? (int) getenv('REDIS_CLUSTER_PORT') : 7000;
+
+    return ["{$host}:{$port}"];
+}
+
+function getClusterOptions(): array
+{
+    $password = getenv('REDIS_CLUSTER_PASSWORD') !== false
+        ? (string) getenv('REDIS_CLUSTER_PASSWORD')
+        : (getenv('REDIS_PASSWORD') !== false ? (string) getenv('REDIS_PASSWORD') : 'root_password');
+
+    return [
+        'password' => $password,
+    ];
+}
+
+function skipIfClusterNotRunning(PHPUnit\Framework\TestCase $test): void
+{
+    $host = getenv('REDIS_CLUSTER_HOST') !== false ? (string) getenv('REDIS_CLUSTER_HOST') : '127.0.0.1';
+    $port = getenv('REDIS_CLUSTER_PORT') !== false ? (int) getenv('REDIS_CLUSTER_PORT') : 7000;
+
+    $socket = @fsockopen($host, $port, $errno, $errstr, 0.2);
+    if ($socket === false) {
+        $test->markTestSkipped("Redis Cluster server is not running on {$host}:{$port}");
+    } else {
+        fclose($socket);
+    }
+}
