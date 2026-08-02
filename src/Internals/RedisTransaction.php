@@ -14,7 +14,6 @@ use Hibla\Redis\Command\Transactions\UnwatchCommand;
 use Hibla\Redis\Command\Transactions\WatchCommand;
 use Hibla\Redis\Exceptions\TransactionException;
 use Hibla\Redis\Interfaces\CommandInterface;
-use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\Manager\PoolManager;
 use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 
@@ -24,7 +23,7 @@ use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
  *
  * @internal Created by RedisClient::transaction() - do not instantiate directly.
  */
-final class RedisTransaction implements RedisTransactionInterface
+final class RedisTransaction implements InternalTransactionInterface
 {
     use RedisCommandsTrait;
 

@@ -15,16 +15,16 @@ use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Exceptions\TransactionException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\NodeClientInterface;
+use Hibla\Redis\Interfaces\RedisClientInterface;
 use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 
-use function Hibla\async;
 use function Hibla\await;
 
 /**
  * @internal Created by RedisCluster::transaction(). Do not instantiate directly.
  */
-final class RedisClusterTransaction implements RedisTransactionInterface
+final class RedisClusterTransaction implements InternalTransactionInterface
 {
     use RedisCommandsTrait;
 
@@ -42,7 +42,7 @@ final class RedisClusterTransaction implements RedisTransactionInterface
      */
     private ?Promise $holdPromise = null;
 
-    private ?RedisTransactionInterface $internalTx = null;
+    private ?InternalTransactionInterface $internalTx = null;
 
     /**
      * @param \Closure(string): NodeClientInterface $clientFactory
@@ -50,8 +50,7 @@ final class RedisClusterTransaction implements RedisTransactionInterface
     public function __construct(
         private readonly ClusterTopology $topology,
         private readonly \Closure $clientFactory
-    ) {
-    }
+    ) {}
 
     /**
      * @template TReturn
@@ -64,11 +63,8 @@ final class RedisClusterTransaction implements RedisTransactionInterface
     {
         $key = KeyExtractor::extract($command);
 
-        /** @var PromiseInterface<TReturn> $promise */
         $promise = $this->getInternalTx($key)->then(
-            function (RedisTransactionInterface $tx) use ($command) {
-                return $tx->executeCommand($command);
-            }
+            fn(RedisTransactionInterface $tx) => $tx->executeCommand($command)
         );
 
         return Promise::propagateCancellation($promise);
@@ -80,10 +76,7 @@ final class RedisClusterTransaction implements RedisTransactionInterface
     public function watch(string ...$keys): PromiseInterface
     {
         if ($keys === []) {
-            /** @var PromiseInterface<string> $resolved */
-            $resolved = Promise::resolved('OK');
-
-            return $resolved;
+            return Promise::resolved('OK');
         }
 
         foreach ($keys as $key) {
@@ -114,13 +107,9 @@ final class RedisClusterTransaction implements RedisTransactionInterface
     public function unwatch(): PromiseInterface
     {
         if ($this->internalTxPromise === null) {
-            /** @var PromiseInterface<string> $resolved */
-            $resolved = Promise::resolved('OK');
-
-            return $resolved;
+            return Promise::resolved('OK');
         }
 
-        /** @var PromiseInterface<string> $promise */
         $promise = $this->internalTxPromise->then(
             function (RedisTransactionInterface $tx) {
                 return $tx->unwatch();
@@ -138,10 +127,7 @@ final class RedisClusterTransaction implements RedisTransactionInterface
         $this->isMulti = true;
 
         if ($this->internalTxPromise === null) {
-            /** @var PromiseInterface<string> $resolved */
-            $resolved = Promise::resolved('OK');
-
-            return $resolved;
+            return Promise::resolved('OK');
         }
 
         /** @var PromiseInterface<string> $promise */
@@ -155,31 +141,25 @@ final class RedisClusterTransaction implements RedisTransactionInterface
     }
 
     /**
-     * @return PromiseInterface<array<int, mixed>|null>
+     * @return PromiseInterface<array<int, mixed|null>>
      */
     public function exec(): PromiseInterface
     {
         $this->isMulti = false;
 
         if ($this->internalTxPromise === null) {
-            /** @var PromiseInterface<array<int, mixed>|null> $resolved */
-            $resolved = Promise::resolved([]);
-
-            return $resolved;
+            return Promise::resolved([]);
         }
 
-        /** @var PromiseInterface<array<int, mixed>|null> $promise */
         $promise = $this->internalTxPromise->then(
-            function (RedisTransactionInterface $tx) {
-                return $tx->exec();
-            }
+            fn(RedisTransactionInterface $tx) => $tx->exec()
         );
 
         $promise
             ->finally(function () {
                 Loop::nextTick($this->releaseInternal(...));
             })
-            ->catch(fn () => null)
+            ->catch(fn() => null)
         ;
 
         return Promise::propagateCancellation($promise);
@@ -193,20 +173,16 @@ final class RedisClusterTransaction implements RedisTransactionInterface
         $this->isMulti = false;
 
         if ($this->internalTxPromise === null) {
-            /** @var PromiseInterface<string> $resolved */
-            $resolved = Promise::resolved('OK');
-
-            return $resolved;
+            return Promise::resolved('OK');
         }
 
-        /** @var PromiseInterface<string> $promise */
-        $promise = $this->internalTxPromise->then(fn (RedisTransactionInterface $tx) => $tx->discard());
+        $promise = $this->internalTxPromise->then(fn(RedisTransactionInterface $tx) => $tx->discard());
 
         $promise
             ->finally(function () {
                 Loop::nextTick($this->releaseInternal(...));
             })
-            ->catch(fn () => null)
+            ->catch(fn() => null)
         ;
 
         return Promise::propagateCancellation($promise);
@@ -214,33 +190,34 @@ final class RedisClusterTransaction implements RedisTransactionInterface
 
     public function isActive(): bool
     {
-        return $this->internalTx !== null && method_exists($this->internalTx, 'isActive') ? $this->internalTx->isActive() : true;
+        return $this->internalTx !== null ? $this->internalTx->isActive() : true;
     }
 
     public function isInMulti(): bool
     {
-        return $this->internalTx !== null && method_exists($this->internalTx, 'isInMulti') ? $this->internalTx->isInMulti() : $this->isMulti;
+        return $this->internalTx !== null ? $this->internalTx->isInMulti() : $this->isMulti;
     }
 
     public function forceCancelCurrentQuery(): void
     {
-        if ($this->internalTx !== null && method_exists($this->internalTx, 'forceCancelCurrentQuery')) {
-            $this->internalTx->forceCancelCurrentQuery();
-        }
+        $this->internalTx?->forceCancelCurrentQuery();
     }
 
+    /**
+     * @return PromiseInterface<void>
+     */
     public function abort(): PromiseInterface
     {
-        return async(function () {
-            if ($this->internalTx !== null && method_exists($this->internalTx, 'abort')) {
-                await($this->internalTx->abort());
-            }
+        if ($this->internalTx !== null) {
+            return $this->internalTx->abort()
+                ->then(function (): void {
+                    $this->releaseInternal(new CancelledException('Transaction aborted'));
+                });
+        }
 
-            // Reject the hold promise, triggering the underlying RedisClient's robust cancellation logic!
-            $this->releaseInternal(new CancelledException('Transaction aborted'));
+        $this->releaseInternal(new CancelledException('Transaction aborted'));
 
-            return null;
-        });
+        return Promise::resolved();
     }
 
     public function release(): void
@@ -249,7 +226,9 @@ final class RedisClusterTransaction implements RedisTransactionInterface
     }
 
     /**
-     * Lazy-loads the actual node transaction once we know which slot we are targeting.
+     * Lazy-loads the actual node transaction the cluster knows about.
+     *
+     * @return PromiseInterface<RedisTransactionInterface>
      */
     private function getInternalTx(?string $key = null): PromiseInterface
     {
@@ -278,25 +257,34 @@ final class RedisClusterTransaction implements RedisTransactionInterface
         $nodeUri = $this->topology->getNodeForSlot($this->lockedSlot);
         $nodeClient = ($this->clientFactory)($nodeUri);
 
-        if (! method_exists($nodeClient, 'transaction')) {
-            $txPromise->reject(new RedisException('Underlying node client does not support transactions.'));
+        if (!$nodeClient instanceof RedisClientInterface) {
+            $txPromise->reject(new RedisException('Underlying node client does not support transactions (must implement RedisClientInterface).'));
 
             return $txPromise;
         }
 
         $nodeClient->transaction(function (RedisTransactionInterface $tx) use ($txPromise, $holdPromise) {
+            if (!$tx instanceof InternalTransactionInterface) {
+                $txPromise->reject(new RedisException('Underlying transaction instance does not support internal lifecycle methods.'));
+
+                await($holdPromise);
+                
+                return null;
+            }
+
             $this->internalTx = $tx;
 
             if ($this->isMulti) {
                 $tx->multi()->then(
-                    fn () => $txPromise->resolve($tx),
-                    fn (\Throwable $e) => $txPromise->reject($e)
+                    fn() => $txPromise->resolve($tx),
+                    $txPromise->reject(...)
                 );
             } else {
                 $txPromise->resolve($tx);
             }
 
-            return await($holdPromise);
+            await($holdPromise);
+            return null;
         })->catch(function (\Throwable $e) use ($txPromise) {
             if ($txPromise->isPending()) {
                 $txPromise->reject($e);
