@@ -21,4 +21,9 @@ final class PublishCommand extends AbstractCommand
     public string $id {
         get => 'PUBLISH';
     }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

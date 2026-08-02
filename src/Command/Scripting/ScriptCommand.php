@@ -20,4 +20,9 @@ final class ScriptCommand extends AbstractCommand
     public string $id {
         get => 'SCRIPT';
     }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

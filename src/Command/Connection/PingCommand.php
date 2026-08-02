@@ -22,4 +22,9 @@ final class PingCommand extends AbstractCommand
     public string $id {
         get => 'PING';
     }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

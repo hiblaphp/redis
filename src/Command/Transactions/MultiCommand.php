@@ -19,4 +19,9 @@ use Hibla\Redis\Command\AbstractCommand;
 final class MultiCommand extends AbstractCommand
 {
     public string $id { get => 'MULTI'; }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

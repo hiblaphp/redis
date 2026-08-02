@@ -29,4 +29,9 @@ final class SubscribeCommand extends AbstractCommand
     {
         return true;
     }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

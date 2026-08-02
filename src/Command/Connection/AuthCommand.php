@@ -20,4 +20,9 @@ use Hibla\Redis\Command\AbstractCommand;
 final class AuthCommand extends AbstractCommand
 {
     public string $id { get => 'AUTH'; }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

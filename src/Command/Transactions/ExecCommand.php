@@ -22,4 +22,9 @@ use Hibla\Redis\Command\AbstractCommand;
 final class ExecCommand extends AbstractCommand
 {
     public string $id { get => 'EXEC'; }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

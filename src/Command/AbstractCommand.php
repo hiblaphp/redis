@@ -20,6 +20,14 @@ use Hibla\Redis\Interfaces\CommandInterface;
 abstract class AbstractCommand implements CommandInterface
 {
     /**
+     * {@inheritDoc}
+     */
+    public function hasKeys(): bool
+    {
+        return true;
+    }
+
+    /**
      * @param array<int|string, mixed> $args
      */
     public function __construct(
@@ -39,7 +47,7 @@ abstract class AbstractCommand implements CommandInterface
      */
     public function isBlocking(): bool
     {
-        return false; // False by default, overridden by specific commands
+        return false;
     }
 
     /**
@@ -50,6 +58,6 @@ abstract class AbstractCommand implements CommandInterface
     public function parseResponse(mixed $data): mixed
     {
         /** @var TResponse */
-        return $data; // Pass-through by default
+        return $data;
     }
 }

@@ -20,4 +20,9 @@ use Hibla\Redis\Command\AbstractCommand;
 final class SelectCommand extends AbstractCommand
 {
     public string $id { get => 'SELECT'; }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

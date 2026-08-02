@@ -13,12 +13,16 @@ final class KeyExtractor
      */
     public static function extract(CommandInterface $command): ?string
     {
-        $id = strtoupper($command->id);
-        $args = $command->arguments;
+        if (! $command->hasKeys()) {
+            return null;
+        }
 
+        $args = $command->arguments;
         if ($args === []) {
             return null;
         }
+
+        $id = strtoupper($command->id);
 
         /**
          * BITOP and XGROUP: Key is the SECOND argument (args[1])

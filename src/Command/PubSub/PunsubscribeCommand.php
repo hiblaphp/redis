@@ -24,4 +24,9 @@ final class PunsubscribeCommand extends AbstractCommand
     public string $id {
         get => 'PUNSUBSCRIBE';
     }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

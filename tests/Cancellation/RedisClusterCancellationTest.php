@@ -7,6 +7,7 @@ namespace Tests\Cancellation;
 use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\SettledResultInterface;
 use Hibla\Promise\Promise;
+use Hibla\Redis\Interfaces\PipelineInterface;
 use Hibla\Redis\RedisCluster;
 
 use function Hibla\await;
@@ -116,7 +117,6 @@ describe('RedisCluster Cancellation', function (): void {
         try {
             await($cluster->ping());
 
-            /** @var array<int, \Hibla\Promise\Interfaces\PromiseInterface<mixed>> $promises */
             $promises = [];
 
             for ($i = 0; $i < 50; $i++) {
@@ -149,7 +149,6 @@ describe('RedisCluster Cancellation', function (): void {
             await($cluster->ping());
 
             $key = 'immediate_cancel_key_' . uniqid();
-
             $promise = $cluster->set($key, 'should_not_exist');
             $promise->cancel();
 
@@ -166,7 +165,6 @@ describe('RedisCluster Cancellation', function (): void {
 
         try {
             $streamPromise = $cluster->scanStream('pre_init_scan_*');
-
             $streamPromise->cancel();
 
             expect(fn () => await($streamPromise))->toThrow(CancelledException::class);
@@ -182,8 +180,8 @@ describe('RedisCluster Cancellation', function (): void {
 
         try {
             await($cluster->ping());
-            $blockPromise = $cluster->blpop('wait_for_close_key', 50);
 
+            $blockPromise = $cluster->blpop('wait_for_close_key', 50);
             $closePromise = $cluster->closeAsync();
 
             await(delay(0.05));
@@ -192,8 +190,8 @@ describe('RedisCluster Cancellation', function (): void {
             $blockPromise->cancel();
 
             expect(fn () => await($blockPromise))->toThrow(CancelledException::class);
-            await($closePromise);
 
+            await($closePromise);
             expect($closePromise->isFulfilled())->toBeTrue();
         } finally {
             $cluster->close();
@@ -214,8 +212,186 @@ describe('RedisCluster Cancellation', function (): void {
             $results = await(Promise::allSettled([$p1, $p2, $p3]));
 
             expect($results[0]->isCancelled())->toBeTrue();
+
             expect($results[1]->isFulfilled())->toBeTrue();
             expect($results[2]->isFulfilled())->toBeTrue();
+
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('cancels a cluster pipeline mid-flight and frees network sockets across all nodes', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            await($cluster->ping());
+
+            $pipePromise = $cluster->pipeline(function (PipelineInterface $pipe) {
+                $pipe->set('pipe_cancel_k1', 'val1')
+                     ->blpop('pipe_cancel_list', 50)
+                     ->set('pipe_cancel_k2', 'val2')
+                ;
+            });
+
+            await(delay(0.05));
+
+            $pipePromise->cancel();
+
+            expect(fn () => await($pipePromise))->toThrow(CancelledException::class);
+
+            expect(await($cluster->set('pipe_cancel_recovery', 'ok')))->toBe('OK');
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('cancels a cluster pipeline before topology discovery completes', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $pipePromise = $cluster->pipeline(function (PipelineInterface $pipe) {
+                $pipe->set('pipe_pre_disc_k1', 'v1')
+                     ->get('pipe_pre_disc_k1')
+                ;
+            });
+
+            $pipePromise->cancel();
+
+            expect(fn () => await($pipePromise))->toThrow(CancelledException::class);
+
+            expect(await($cluster->ping('pipeline_recovered')))->toBe('pipeline_recovered');
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('handles high volume concurrent pipeline cancellations securely', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            await($cluster->ping());
+
+            $promises = [];
+
+            for ($i = 0; $i < 20; $i++) {
+                $promises[] = $cluster->pipeline(function (PipelineInterface $pipe) use ($i) {
+                    $pipe->blpop("pipe_mass_cancel_{$i}_" . uniqid(), 50);
+                });
+            }
+
+            await(delay(0.05));
+
+            foreach ($promises as $promise) {
+                $promise->cancel();
+            }
+
+            /** @var array<int, SettledResultInterface<mixed, \Throwable>> $results */
+            $results = await(Promise::allSettled($promises));
+
+            foreach ($results as $result) {
+                expect($result->isCancelled())->toBeTrue();
+            }
+
+            expect(await($cluster->set('pipe_mass_cancel_recovery', 'yes')))->toBe('OK');
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('cancels a cluster atomic transaction mid-flight while waiting for a pool connection', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            await($cluster->ping());
+
+            $tag = 'cancel_atomic_' . uniqid();
+            $key = "{{$tag}}:k1";
+
+            $blockers = [];
+            for ($i = 0; $i < 10; $i++) {
+                $blockers[] = $cluster->blpop("{{$tag}}:hog_{$i}", 50);
+            }
+
+            await(delay(0.05));
+
+            $atomicPromise = $cluster->atomic(function (PipelineInterface $pipe) use ($key) {
+                $pipe->set($key, 'uncommitted_value');
+            });
+
+            $atomicPromise->cancel();
+
+            expect(fn () => await($atomicPromise))->toThrow(CancelledException::class);
+
+            foreach ($blockers as $b) {
+                $b->cancel();
+            }
+
+            expect(await($cluster->get($key)))->toBeNull();
+            expect(await($cluster->set("{{$tag}}:recovery", 'ok')))->toBe('OK');
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('cancels a cluster atomic transaction before topology discovery completes', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $tag = 'cancel_pre_disc_' . uniqid();
+
+            $atomicPromise = $cluster->atomic(function (PipelineInterface $pipe) use ($tag) {
+                $pipe->set("{{$tag}}:k1", 'val');
+            });
+
+            $atomicPromise->cancel();
+
+            expect(fn () => await($atomicPromise))->toThrow(CancelledException::class);
+
+            expect(await($cluster->ping('atomic_recovered')))->toBe('atomic_recovered');
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('handles high volume concurrent atomic transaction cancellations securely', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            await($cluster->ping());
+
+            $tag = 'atomic_mass_' . uniqid();
+            $blockers = [];
+            for ($i = 0; $i < 10; $i++) {
+                $blockers[] = $cluster->blpop("{{$tag}}:hog_{$i}", 50);
+            }
+
+            await(delay(0.05));
+
+            $promises = [];
+
+            for ($i = 0; $i < 20; $i++) {
+                $promises[] = $cluster->atomic(function (PipelineInterface $pipe) use ($tag) {
+                    $pipe->set("{{$tag}}:k1", 'val');
+                });
+            }
+
+            foreach ($promises as $promise) {
+                $promise->cancel();
+            }
+
+            foreach ($blockers as $b) {
+                $b->cancel();
+            }
+
+            /** @var array<int, SettledResultInterface<mixed, \Throwable>> $results */
+            $results = await(Promise::allSettled($promises));
+
+            foreach ($results as $result) {
+                expect($result->isCancelled())->toBeTrue();
+            }
+
+            expect(await($cluster->set('atomic_mass_cancel_recovery', 'yes')))->toBe('OK');
         } finally {
             $cluster->close();
         }

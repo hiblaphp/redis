@@ -30,4 +30,9 @@ final class PsubscribeCommand extends AbstractCommand
     {
         return true;
     }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

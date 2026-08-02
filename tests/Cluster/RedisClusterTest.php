@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Client;
 
 use Hibla\Promise\Promise;
+use Hibla\Redis\Exceptions\RedisException;
+use Hibla\Redis\Interfaces\PipelineInterface;
 use Hibla\Redis\RedisCluster;
 
 use function Hibla\await;
@@ -159,6 +161,210 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
             $setKey = 'cluster_set_' . uniqid();
             await($cluster->sadd($setKey, 'm1', 'm2'));
             expect(await($cluster->scard($setKey)))->toBe(2);
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('executes pipelined commands concurrently across multiple cluster nodes', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $results = await($cluster->pipeline(function (PipelineInterface $pipe) {
+                $pipe->set('pipe_cluster_1', 'val1')
+                     ->set('pipe_cluster_2', 'val2')
+                     ->set('pipe_cluster_3', 'val3')
+                     ->get('pipe_cluster_1')
+                     ->get('pipe_cluster_2')
+                     ->get('pipe_cluster_3')
+                ;
+            }));
+
+            expect($results)->toBe([
+                'OK',
+                'OK',
+                'OK',
+                'val1',
+                'val2',
+                'val3',
+            ]);
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('executes atomic MULTI/EXEC blocks when all keys map to the same hash slot', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $results = await($cluster->atomic(function (PipelineInterface $pipe) {
+                $pipe->set('{groupA}:k1', 'val1')
+                     ->set('{groupA}:k2', 'val2')
+                     ->get('{groupA}:k1')
+                     ->ping('atomic_ping')
+                ;
+            }));
+
+            expect($results)->toBe([
+                'OK',
+                'OK',
+                'val1',
+                'atomic_ping',
+            ]);
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('rejects atomic transactions immediately if keys map to different hash slots', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $promise = $cluster->atomic(function (PipelineInterface $pipe) {
+                $pipe->set('cross_slot_1', 'val1')
+                     ->set('cross_slot_2', 'val2')
+                ;
+            });
+
+            expect(fn () => await($promise))->toThrow(
+                RedisException::class,
+                'Cross-slot transaction attempted'
+            );
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    // --- NEW PIPELINE & ATOMIC EDGE CASE TESTS ---
+
+    it('handles empty pipeline and empty atomic blocks gracefully without network requests', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $pipeRes = await($cluster->pipeline(function (): void {
+            }));
+            $atomicRes = await($cluster->atomic(function (): void {
+            }));
+
+            expect($pipeRes)->toBe([])
+                ->and($atomicRes)->toBe([])
+            ;
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('preserves strict FIFO result ordering in pipelines mixing keyless and key-routed commands across shards', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $k1 = 'fifo_key1_' . uniqid();
+            $k2 = 'fifo_key2_' . uniqid();
+
+            $results = await($cluster->pipeline(function (PipelineInterface $pipe) use ($k1, $k2) {
+                $pipe->ping('p1')
+                     ->set($k1, 'v1')
+                     ->ping('p2')
+                     ->set($k2, 'v2')
+                     ->get($k1)
+                     ->ping('p3')
+                     ->get($k2)
+                ;
+            }));
+
+            expect($results)->toBe([
+                'p1',
+                'OK',
+                'p2',
+                'OK',
+                'v1',
+                'p3',
+                'v2',
+            ]);
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('rejects pipeline promise if a command in the pipeline fails server-side', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $stringKey = 'pipe_wrongtype_key_' . uniqid();
+            await($cluster->set($stringKey, 'string_value'));
+
+            $promise = $cluster->pipeline(function (PipelineInterface $pipe) use ($stringKey) {
+                $pipe->set('valid_key', 'val')
+                     ->hgetall($stringKey)
+                ;
+            });
+
+            expect(fn () => await($promise))->toThrow(
+                RedisException::class,
+                'WRONGTYPE'
+            );
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('allows keyless commands (PING, ECHO) alongside same-slot key commands inside an atomic block', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $tag = 'atomic_mix_' . uniqid();
+
+            $results = await($cluster->atomic(function (PipelineInterface $pipe) use ($tag) {
+                $pipe->ping('start')
+                     ->set("{{$tag}}:k1", 'v1')
+                     ->ping('middle')
+                     ->get("{{$tag}}:k1")
+                     ->ping('end')
+                ;
+            }));
+
+            expect($results)->toBe([
+                'start',
+                'OK',
+                'middle',
+                'v1',
+                'end',
+            ]);
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('handles high volume pipelining across cluster shards reliably', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $count = 300;
+            $keys = [];
+
+            $insertResults = await($cluster->pipeline(function (PipelineInterface $pipe) use ($count, &$keys) {
+                for ($i = 0; $i < $count; $i++) {
+                    $k = "mass_pipe_{$i}_" . uniqid();
+                    $keys[] = $k;
+                    $pipe->set($k, "val_{$i}");
+                }
+            }));
+
+            expect($insertResults)->toHaveCount($count)
+                ->and($insertResults[0])->toBe('OK')
+                ->and($insertResults[$count - 1])->toBe('OK')
+            ;
+
+            $getResults = await($cluster->pipeline(function (PipelineInterface $pipe) use ($keys) {
+                foreach ($keys as $k) {
+                    $pipe->get($k);
+                }
+            }));
+
+            expect($getResults)->toHaveCount($count)
+                ->and($getResults[0])->toBe('val_0')
+                ->and($getResults[$count - 1])->toBe('val_' . ($count - 1))
+            ;
         } finally {
             $cluster->close();
         }

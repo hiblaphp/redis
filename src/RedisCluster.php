@@ -14,8 +14,10 @@ use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\NodeClientInterface;
+use Hibla\Redis\Interfaces\PipelineInterface;
 use Hibla\Redis\Interfaces\RedisCommandsInterface;
 use Hibla\Redis\Interfaces\ScanStreamInterface;
+use Hibla\Redis\Internals\Pipeline as InternalPipeline;
 use Hibla\Redis\Internals\ScanStream;
 use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 use Hibla\Redis\ValueObjects\RedisConfig;
@@ -78,13 +80,94 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
     }
 
     /**
-     * Scans all master nodes in the cluster concurrently.
+     * @param callable(PipelineInterface): void $callback
      *
+     * @return PromiseInterface<array<int, mixed>>
+     */
+    public function pipeline(callable $callback): PromiseInterface
+    {
+        $pipeline = new InternalPipeline();
+        $callback($pipeline);
+
+        $pipeline->lock();
+        $commands = $pipeline->commands;
+
+        if ($commands === []) {
+            return Promise::resolved([]);
+        }
+
+        $promises = [];
+        foreach ($commands as $command) {
+            $promises[] = $this->executeCommand($command);
+        }
+
+        /** @var PromiseInterface<array<int, mixed>> $allPromise */
+        $allPromise = Promise::all($promises);
+
+        return Promise::propagateCancellation($allPromise);
+    }
+
+    /**
+     * @param callable(PipelineInterface): void $callback
+     *
+     * @return PromiseInterface<array<int, mixed>>
+     */
+    public function atomic(callable $callback): PromiseInterface
+    {
+        $pipeline = new InternalPipeline();
+        $callback($pipeline);
+
+        $pipeline->lock();
+        $commands = $pipeline->commands;
+
+        if ($commands === []) {
+            $resolved = Promise::resolved([]);
+
+            return $resolved;
+        }
+
+        $slot = null;
+        foreach ($commands as $command) {
+            $key = KeyExtractor::extract($command);
+            if ($key !== null) {
+                $cmdSlot = SlotCalculator::calculate($key);
+                if ($slot === null) {
+                    $slot = $cmdSlot;
+                } elseif ($slot !== $cmdSlot) {
+                    return Promise::rejected(
+                        new RedisException('Cross-slot transaction attempted. All keys in atomic() must map to the same hash slot using Hash Tags {}.')
+                    );
+                }
+            }
+        }
+
+        /** @var Promise<array<int, mixed>> $promise */
+        $promise = new Promise();
+
+        if (! $this->topology->isReady()) {
+            $discovery = $this->topology->discover();
+
+            Promise::forwardCancellation($promise, $discovery);
+
+            if ($discovery !== null) {
+                $discovery->then(
+                    fn () => $this->executeAtomicWithRouting(0, $commands, $slot, $promise),
+                    $promise->reject(...)
+                );
+            }
+        } else {
+            $this->executeAtomicWithRouting(0, $commands, $slot, $promise);
+        }
+
+        return Promise::propagateCancellation($promise);
+    }
+
+    /**
      * @return PromiseInterface<ScanStreamInterface<int, string>>
      */
     public function scanStream(?string $match = null, ?int $count = null, ?string $type = null): PromiseInterface
     {
-        /** @var Promise<ClusterScanStream<int, string>> $promise */
+        /** @var Promise<ScanStreamInterface<int, string>> $promise */
         $promise = new Promise();
 
         if (! $this->topology->isReady()) {
@@ -108,8 +191,8 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
     }
 
     /**
-       * @param Promise<ScanStreamInterface<int, string>> $promise
-      */
+     * @param Promise<ScanStreamInterface<int, string>> $promise
+     */
     private function createClusterScanStream(?string $match, ?int $count, ?string $type, Promise $promise): void
     {
         if ($promise->isCancelled()) {
@@ -244,6 +327,78 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
     }
 
     /**
+     * @param array<int, CommandInterface<mixed>> $commands
+     * @param Promise<array<int, mixed>> $promise
+     */
+    private function executeAtomicWithRouting(int $attempts, array $commands, ?int $slot, Promise $promise): void
+    {
+        if ($promise->isCancelled()) {
+            return;
+        }
+
+        $nodeUri = $this->topology->getNodeForSlot($slot);
+        $client = $this->getNodeClient($nodeUri);
+
+        $atomicPromise = $client->atomic(function ($pipe) use ($commands) {
+            foreach ($commands as $cmd) {
+                $pipe->executeCommand($cmd);
+            }
+        });
+
+        Promise::forwardCancellation($promise, $atomicPromise);
+
+        if ($atomicPromise !== null) {
+            $atomicPromise->then(
+                $promise->resolve(...),
+                function (\Throwable $e) use ($attempts, $commands, $slot, $promise) {
+                    if ($promise->isCancelled()) {
+                        return;
+                    }
+
+                    if ($attempts >= 5) {
+                        $promise->reject(new RedisException('Cluster retry limit exceeded after 5 redirections', 0, $e));
+
+                        return;
+                    }
+
+                    $msg = $e->getMessage();
+
+                    if (str_starts_with($msg, 'MOVED ')) {
+                        $parts = explode(' ', $msg);
+                        $this->topology->updateSlot((int)$parts[1], $parts[2]);
+                        $this->executeAtomicWithRouting($attempts + 1, $commands, $slot, $promise);
+
+                        return;
+                    }
+
+                    if (str_starts_with($msg, 'ASK ')) {
+                        $promise->reject(new RedisException('Cross-node ASK redirection during MULTI/EXEC is not supported by Redis Cluster', 0, $e));
+
+                        return;
+                    }
+
+                    if (str_starts_with($msg, 'CLUSTERDOWN')) {
+                        $discovery = $this->topology->discover();
+
+                        Promise::forwardCancellation($promise, $discovery);
+
+                        if ($discovery !== null) {
+                            $discovery->then(
+                                fn () => $this->executeAtomicWithRouting($attempts + 1, $commands, $slot, $promise),
+                                $promise->reject(...)
+                            );
+                        }
+
+                        return;
+                    }
+
+                    $promise->reject($e);
+                }
+            );
+        }
+    }
+
+    /**
      * @template TReturn
      *
      * @param CommandInterface<TReturn> $command
@@ -283,6 +438,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
                         $error = $results[1];
                         $promise->reject($error);
                     } else {
+                        /** @var TReturn $result */
                         $result = $results[1] ?? null;
                         $promise->resolve($result);
                     }

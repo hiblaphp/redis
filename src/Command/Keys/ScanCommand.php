@@ -22,6 +22,11 @@ final class ScanCommand extends AbstractCommand
         get => 'SCAN';
     }
 
+    public function hasKeys(): bool
+    {
+        return false;
+    }
+
     /**
      * @return array{0: string, 1: array<int, string>}
      */

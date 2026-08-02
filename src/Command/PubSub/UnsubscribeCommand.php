@@ -24,4 +24,9 @@ final class UnsubscribeCommand extends AbstractCommand
     public string $id {
         get => 'UNSUBSCRIBE';
     }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

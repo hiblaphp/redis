@@ -7,14 +7,15 @@ namespace Hibla\Redis\Interfaces;
 /**
  * Contract for all Redis commands.
  *
- * Every Redis command encapsulates its own identifier, arguments, parsing rules,
- * and behavior on connection cancellation. By implementing this interface, commands
- * can be plugged cleanly into the async execution pipeline.
- *
  * @template-covariant TResponse The expected PHP return type after parsing.
  */
 interface CommandInterface
 {
+    /**
+     * Indicates whether this command operates on Redis keys.
+     */
+    public function hasKeys(): bool;
+
     /**
      * The Redis command ID (e.g., 'GET', 'SET', 'HGETALL').
      */
@@ -29,8 +30,6 @@ interface CommandInterface
 
     /**
      * Indicates if this command blocks the Redis connection (e.g. BLPOP).
-     * Used by the connection manager to determine if the socket must be
-     * force-closed upon promise cancellation.
      */
     public function isBlocking(): bool;
 

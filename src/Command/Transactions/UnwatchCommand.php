@@ -18,4 +18,9 @@ use Hibla\Redis\Command\AbstractCommand;
 final class UnwatchCommand extends AbstractCommand
 {
     public string $id { get => 'UNWATCH'; }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }

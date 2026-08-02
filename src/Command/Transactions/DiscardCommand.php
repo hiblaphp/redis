@@ -19,4 +19,9 @@ use Hibla\Redis\Command\AbstractCommand;
 final class DiscardCommand extends AbstractCommand
 {
     public string $id { get => 'DISCARD'; }
+
+    public function hasKeys(): bool
+    {
+        return false;
+    }
 }
