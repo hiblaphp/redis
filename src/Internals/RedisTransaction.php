@@ -227,13 +227,16 @@ final class RedisTransaction implements InternalTransactionInterface
         return Promise::uninterruptible($promise);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function isActive(): bool
     {
         return $this->active && ! $this->connection->isClosed();
     }
 
     /**
-     * @internal Returns true if the transaction is currently in MULTI state.
+     * {@inheritDoc}
      */
     public function isInMulti(): bool
     {
@@ -241,8 +244,7 @@ final class RedisTransaction implements InternalTransactionInterface
     }
 
     /**
-     * @internal Force-cancels any running query on the connection and clears the queue.
-     * Called automatically before discard() or cleanup to clear the wire.
+     * {@inheritDoc}
      */
     public function forceCancelCurrentQuery(): void
     {
@@ -252,19 +254,17 @@ final class RedisTransaction implements InternalTransactionInterface
     }
 
     /**
-     * @internal Forces the transaction to abort and clean up the connection.
-     *
-     * @return PromiseInterface<mixed>
+     * {@inheritDoc}
      */
     public function abort(): PromiseInterface
     {
         if (! $this->active || $this->connection->isClosed()) {
-            /** @var PromiseInterface<mixed> */
             return Promise::resolved();
         }
 
         if ($this->inMulti) {
-            return $this->discard();
+            return $this->discard()->then(function (): void {
+            });
         }
 
         if ($this->isWatched) {
@@ -273,10 +273,10 @@ final class RedisTransaction implements InternalTransactionInterface
 
             $promise = $this->connection->enqueue(new UnwatchCommand());
 
-            return $promise;
+            return $promise->then(function (): void {
+            });
         }
 
-        /** @var PromiseInterface<mixed> */
         return Promise::resolved();
     }
 

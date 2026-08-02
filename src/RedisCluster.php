@@ -75,7 +75,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
             if ($discovery !== null) {
                 $discovery->then(
-                    fn() => $this->executeWithRouting(0, $command, $promise),
+                    fn () => $this->executeWithRouting(0, $command, $promise),
                     $promise->reject(...)
                 );
             }
@@ -158,7 +158,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
             if ($discovery !== null) {
                 $discovery->then(
-                    fn() => $this->executeAtomicWithRouting(0, $commands, $slot, $promise),
+                    fn () => $this->executeAtomicWithRouting(0, $commands, $slot, $promise),
                     $promise->reject(...)
                 );
             }
@@ -244,7 +244,8 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
         $this->nodes = [];
 
-        $closePromise = Promise::allSettled($promises)->then(function (): void {});
+        $closePromise = Promise::allSettled($promises)->then(function (): void {
+        });
 
         return Promise::propagateCancellation($closePromise);
     }
@@ -316,7 +317,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
                     $this->getNodeClient(...)
                 );
 
-                $state->innerWorkPromise = async(fn() => $callback($state->activeTx));
+                $state->innerWorkPromise = async(fn () => $callback($state->activeTx));
                 $result = await($state->innerWorkPromise);
 
                 if ($state->activeTx->isInMulti()) {
@@ -442,7 +443,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
                         if ($discovery !== null) {
                             $discovery->then(
-                                fn() => $this->executeWithRouting($attempts + 1, $command, $promise),
+                                fn () => $this->executeWithRouting($attempts + 1, $command, $promise),
                                 $promise->reject(...)
                             );
                         }
@@ -514,7 +515,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 
                         if ($discovery !== null) {
                             $discovery->then(
-                                fn() => $this->executeAtomicWithRouting($attempts + 1, $commands, $slot, $promise),
+                                fn () => $this->executeAtomicWithRouting($attempts + 1, $commands, $slot, $promise),
                                 $promise->reject(...)
                             );
                         }
@@ -539,7 +540,7 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
         $client = $this->getNodeClient($nodeUri);
 
         $pipePromise = $client->pipeline(function ($pipe) use ($command) {
-            $askingCmd = new class([]) extends AbstractCommand {
+            $askingCmd = new class ([]) extends AbstractCommand {
                 public string $id {
                     get => 'ASKING';
                 }

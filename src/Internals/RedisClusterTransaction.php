@@ -50,14 +50,15 @@ final class RedisClusterTransaction implements InternalTransactionInterface
     public function __construct(
         private readonly ClusterTopology $topology,
         private readonly \Closure $clientFactory
-    ) {}
+    ) {
+    }
 
     /**
      * @template TReturn
      *
      * @param CommandInterface<TReturn> $command
-     * 
-     * @inheritDoc
+     *
+     * {@inheritDoc}
      *
      * @return PromiseInterface<TReturn>
      */
@@ -66,16 +67,14 @@ final class RedisClusterTransaction implements InternalTransactionInterface
         $key = KeyExtractor::extract($command);
 
         $promise = $this->getInternalTx($key)->then(
-            fn(RedisTransactionInterface $tx) => $tx->executeCommand($command)
+            fn (RedisTransactionInterface $tx) => $tx->executeCommand($command)
         );
 
         return Promise::propagateCancellation($promise);
     }
 
     /**
-     * @inheritDoc
-     * 
-     * @return PromiseInterface<string>
+     * {@inheritDoc}
      */
     public function watch(string ...$keys): PromiseInterface
     {
@@ -94,13 +93,13 @@ final class RedisClusterTransaction implements InternalTransactionInterface
         }
 
         $firstKey = $keys[0];
-        $promise = $this->getInternalTx($firstKey)->then(fn(RedisTransactionInterface $tx) =>  $tx->watch(...$keys));
+        $promise = $this->getInternalTx($firstKey)->then(fn (RedisTransactionInterface $tx) => $tx->watch(...$keys));
 
         return Promise::propagateCancellation($promise);
     }
 
     /**
-     * @return PromiseInterface<string>
+     * {@inheritDoc}
      */
     public function unwatch(): PromiseInterface
     {
@@ -108,13 +107,13 @@ final class RedisClusterTransaction implements InternalTransactionInterface
             return Promise::resolved('OK');
         }
 
-        $promise = $this->internalTxPromise->then(fn(RedisTransactionInterface $tx) => $tx->unwatch());
+        $promise = $this->internalTxPromise->then(fn (RedisTransactionInterface $tx) => $tx->unwatch());
 
         return Promise::propagateCancellation($promise);
     }
 
     /**
-     * @return PromiseInterface<string>
+     * {@inheritDoc}
      */
     public function multi(): PromiseInterface
     {
@@ -124,13 +123,13 @@ final class RedisClusterTransaction implements InternalTransactionInterface
             return Promise::resolved('OK');
         }
 
-        $promise = $this->internalTxPromise->then(fn(RedisTransactionInterface $tx) => $tx->multi());
+        $promise = $this->internalTxPromise->then(fn (RedisTransactionInterface $tx) => $tx->multi());
 
         return Promise::propagateCancellation($promise);
     }
 
     /**
-     * @return PromiseInterface<array<int, mixed>|null>
+     * {@inheritDoc}
      */
     public function exec(): PromiseInterface
     {
@@ -140,20 +139,20 @@ final class RedisClusterTransaction implements InternalTransactionInterface
             return Promise::resolved([]);
         }
 
-        $promise = $this->internalTxPromise->then(fn(RedisTransactionInterface $tx) => $tx->exec());
+        $promise = $this->internalTxPromise->then(fn (RedisTransactionInterface $tx) => $tx->exec());
 
         $promise
             ->finally(function () {
                 Loop::nextTick($this->releaseInternal(...));
             })
-            ->catch(fn() => null)
+            ->catch(fn () => null)
         ;
 
         return Promise::propagateCancellation($promise);
     }
 
     /**
-     * @return PromiseInterface<string>
+     * {@inheritDoc}
      */
     public function discard(): PromiseInterface
     {
@@ -163,35 +162,44 @@ final class RedisClusterTransaction implements InternalTransactionInterface
             return Promise::resolved('OK');
         }
 
-        $promise = $this->internalTxPromise->then(fn(RedisTransactionInterface $tx) => $tx->discard());
+        $promise = $this->internalTxPromise->then(fn (RedisTransactionInterface $tx) => $tx->discard());
 
         $promise
             ->finally(function () {
                 Loop::nextTick($this->releaseInternal(...));
             })
-            ->catch(fn() => null)
+            ->catch(fn () => null)
         ;
 
         return Promise::propagateCancellation($promise);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function isActive(): bool
     {
         return $this->internalTx !== null ? $this->internalTx->isActive() : true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function isInMulti(): bool
     {
         return $this->internalTx !== null ? $this->internalTx->isInMulti() : $this->isMulti;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function forceCancelCurrentQuery(): void
     {
         $this->internalTx?->forceCancelCurrentQuery();
     }
 
     /**
-     * @return PromiseInterface<void>
+     * {@inheritDoc}
      */
     public function abort(): PromiseInterface
     {
@@ -199,7 +207,8 @@ final class RedisClusterTransaction implements InternalTransactionInterface
             return $this->internalTx->abort()
                 ->then(function (): void {
                     $this->releaseInternal(new CancelledException('Transaction aborted'));
-                });
+                })
+            ;
         }
 
         $this->releaseInternal(new CancelledException('Transaction aborted'));
@@ -244,14 +253,14 @@ final class RedisClusterTransaction implements InternalTransactionInterface
         $nodeUri = $this->topology->getNodeForSlot($this->lockedSlot);
         $nodeClient = ($this->clientFactory)($nodeUri);
 
-        if (!$nodeClient instanceof RedisClientInterface) {
+        if (! $nodeClient instanceof RedisClientInterface) {
             $txPromise->reject(new RedisException('Underlying node client does not support transactions (must implement RedisClientInterface).'));
 
             return $txPromise;
         }
 
         $nodeClient->transaction(function (RedisTransactionInterface $tx) use ($txPromise, $holdPromise) {
-            if (!$tx instanceof InternalTransactionInterface) {
+            if (! $tx instanceof InternalTransactionInterface) {
                 $txPromise->reject(new RedisException('Underlying transaction instance does not support internal lifecycle methods.'));
 
                 await($holdPromise);
@@ -263,7 +272,7 @@ final class RedisClusterTransaction implements InternalTransactionInterface
 
             if ($this->isMulti) {
                 $tx->multi()->then(
-                    fn() => $txPromise->resolve($tx),
+                    fn () => $txPromise->resolve($tx),
                     $txPromise->reject(...)
                 );
             } else {
@@ -271,6 +280,7 @@ final class RedisClusterTransaction implements InternalTransactionInterface
             }
 
             await($holdPromise);
+
             return null;
         })->catch(function (\Throwable $e) use ($txPromise) {
             if ($txPromise->isPending()) {

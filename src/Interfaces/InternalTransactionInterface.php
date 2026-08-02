@@ -13,7 +13,6 @@ use Hibla\Redis\Interfaces\RedisTransactionInterface;
  */
 interface InternalTransactionInterface extends RedisTransactionInterface
 {
-
     /**
      * Checks if the transaction is still active and valid.
      */
