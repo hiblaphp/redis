@@ -50,7 +50,8 @@ final class RedisClusterTransaction implements RedisTransactionInterface
     public function __construct(
         private readonly ClusterTopology $topology,
         private readonly \Closure $clientFactory
-    ) {}
+    ) {
+    }
 
     /**
      * @template TReturn
@@ -158,6 +159,8 @@ final class RedisClusterTransaction implements RedisTransactionInterface
      */
     public function exec(): PromiseInterface
     {
+        $this->isMulti = false;
+
         if ($this->internalTxPromise === null) {
             /** @var PromiseInterface<array<int, mixed>|null> $resolved */
             $resolved = Promise::resolved([]);
@@ -172,21 +175,23 @@ final class RedisClusterTransaction implements RedisTransactionInterface
             }
         );
 
-        // Defer connection cleanup to next tick so the result cleanly returns
-        $promise->finally(function () {
-            Loop::microTask(function () {
-                $this->releaseInternal();
-            });
-        })->catch(fn() => null);
+        $promise
+            ->finally(function () {
+                Loop::nextTick($this->releaseInternal(...));
+            })
+            ->catch(fn () => null)
+        ;
 
         return Promise::propagateCancellation($promise);
     }
 
-      /**
+    /**
      * @return PromiseInterface<string>
      */
     public function discard(): PromiseInterface
     {
+        $this->isMulti = false;
+
         if ($this->internalTxPromise === null) {
             /** @var PromiseInterface<string> $resolved */
             $resolved = Promise::resolved('OK');
@@ -195,17 +200,14 @@ final class RedisClusterTransaction implements RedisTransactionInterface
         }
 
         /** @var PromiseInterface<string> $promise */
-        $promise = $this->internalTxPromise->then(
-            function (RedisTransactionInterface $tx) {
-                return $tx->discard();
-            }
-        );
+        $promise = $this->internalTxPromise->then(fn (RedisTransactionInterface $tx) => $tx->discard());
 
-        $promise->finally(function () {
-            Loop::microTask(function () {
-                $this->releaseInternal();
-            });
-        })->catch(fn () => null);
+        $promise
+            ->finally(function () {
+                Loop::nextTick($this->releaseInternal(...));
+            })
+            ->catch(fn () => null)
+        ;
 
         return Promise::propagateCancellation($promise);
     }
@@ -287,8 +289,8 @@ final class RedisClusterTransaction implements RedisTransactionInterface
 
             if ($this->isMulti) {
                 $tx->multi()->then(
-                    fn() => $txPromise->resolve($tx),
-                    fn(\Throwable $e) => $txPromise->reject($e)
+                    fn () => $txPromise->resolve($tx),
+                    fn (\Throwable $e) => $txPromise->reject($e)
                 );
             } else {
                 $txPromise->resolve($tx);

@@ -228,7 +228,7 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
                 ;
             });
 
-            expect(fn() => await($promise))->toThrow(
+            expect(fn () => await($promise))->toThrow(
                 RedisException::class,
                 'Cross-slot transaction attempted'
             );
@@ -243,8 +243,10 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
         $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
 
         try {
-            $pipeRes = await($cluster->pipeline(function (): void {}));
-            $atomicRes = await($cluster->atomic(function (): void {}));
+            $pipeRes = await($cluster->pipeline(function (): void {
+            }));
+            $atomicRes = await($cluster->atomic(function (): void {
+            }));
 
             expect($pipeRes)->toBe([])
                 ->and($atomicRes)->toBe([])
@@ -299,7 +301,7 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
                 ;
             });
 
-            expect(fn() => await($promise))->toThrow(
+            expect(fn () => await($promise))->toThrow(
                 RedisException::class,
                 'WRONGTYPE'
             );
@@ -393,7 +395,8 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
 
             expect($results)->toBe(['OK', 'OK'])
                 ->and(await($cluster->get("{{$tag}}:k1")))->toBe('val1')
-                ->and(await($cluster->get("{{$tag}}:k2")))->toBe('val2');
+                ->and(await($cluster->get("{{$tag}}:k2")))->toBe('val2')
+            ;
         } finally {
             $cluster->close();
         }
@@ -457,7 +460,8 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
             }));
 
             expect($results)->toBe(['OK'])
-                ->and(await($cluster->get($key)))->toBe('150');
+                ->and(await($cluster->get($key)))->toBe('150')
+            ;
         } finally {
             $cluster->close();
         }
@@ -484,7 +488,8 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
             }));
 
             expect($results)->toBeNull()
-                ->and(await($cluster->get($key)))->toBe('999');
+                ->and(await($cluster->get($key)))->toBe('999')
+            ;
         } finally {
             $cluster->close();
             $otherClient->close();
@@ -501,7 +506,7 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
                 await($tx->get('slot_b_key'));
             });
 
-            expect(fn() => await($promise))->toThrow(
+            expect(fn () => await($promise))->toThrow(
                 TransactionException::class,
                 'Cross-slot transaction attempted'
             );
@@ -518,7 +523,7 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
                 await($tx->watch('slot_a_key', 'slot_b_key'));
             });
 
-            expect(fn() => await($promise))->toThrow(
+            expect(fn () => await($promise))->toThrow(
                 TransactionException::class,
                 'Cross-slot transaction attempted in WATCH'
             );
