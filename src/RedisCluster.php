@@ -16,12 +16,18 @@ use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\NodeClientInterface;
 use Hibla\Redis\Interfaces\PipelineInterface;
 use Hibla\Redis\Interfaces\RedisCommandsInterface;
+use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\Interfaces\ScanStreamInterface;
+use Hibla\Redis\Internals\ClusterTransactionExecutionState;
 use Hibla\Redis\Internals\Pipeline as InternalPipeline;
+use Hibla\Redis\Internals\RedisClusterTransaction;
 use Hibla\Redis\Internals\ScanStream;
 use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Redis\ValueObjects\RetryConfig;
+
+use function Hibla\async;
+use function Hibla\await;
 
 final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
 {
@@ -249,6 +255,129 @@ final class RedisCluster implements RedisCommandsInterface, NodeClientInterface
             $nodeClient->close();
         }
         $this->nodes = [];
+    }
+
+    /**
+     * Executes a callback within an isolated Redis connection for transactions and optimistic locking.
+     *
+     * @template TResult
+     *
+     * @param callable(RedisTransactionInterface): TResult $callback
+     *
+     * @return PromiseInterface<TResult>
+     */
+    public function transaction(callable $callback): PromiseInterface
+    {
+        /** @var Promise<TResult> $promise */
+        $promise = new Promise();
+
+        if (! $this->topology->isReady()) {
+            $discovery = $this->topology->discover();
+
+            Promise::forwardCancellation($promise, $discovery);
+
+            if ($discovery !== null) {
+                $discovery->then(
+                    function () use ($callback, $promise) {
+                        $this->executeTransactionCallback($callback, $promise);
+                    },
+                    $promise->reject(...)
+                );
+            }
+        } else {
+            $this->executeTransactionCallback($callback, $promise);
+        }
+
+        return Promise::propagateCancellation($promise);
+    }
+
+    /**
+     * @template TResult
+     *
+     * @param callable(RedisTransactionInterface): TResult $callback
+     * @param Promise<TResult> $promise
+     */
+    private function executeTransactionCallback(callable $callback, Promise $promise): void
+    {
+        if ($promise->isCancelled()) {
+            return;
+        }
+
+        $state = new ClusterTransactionExecutionState();
+
+        $fiberPromise = async(function () use ($callback, $state) {
+            if ($state->isCancelled) {
+                return null;
+            }
+
+            try {
+                $state->activeTx = new RedisClusterTransaction(
+                    $this->topology,
+                    $this->getNodeClient(...)
+                );
+
+                $state->innerWorkPromise = async(fn () => $callback($state->activeTx));
+                $result = await($state->innerWorkPromise);
+
+                if ($state->activeTx->isInMulti()) {
+                    $execResult = await($state->activeTx->exec());
+
+                    /** @var TResult $execResult */
+                    return $execResult; // @phpstan-ignore varTag.type
+                }
+
+                return $result;
+            } catch (\Throwable $e) {
+                if ($state->isCancelled) {
+                    return null;
+                }
+
+                if (
+                    $e instanceof Promise\Exceptions\CancelledException
+                    && $state->innerWorkPromise !== null
+                    && ! $state->innerWorkPromise->isSettled()
+                ) {
+                    $state->innerWorkPromise->cancel();
+                }
+
+                if ($state->activeTx !== null && $state->activeTx->isActive()) {
+                    try {
+                        $state->activeTx->forceCancelCurrentQuery();
+                        await($state->activeTx->abort());
+                    } catch (\Throwable) {
+                        // Ignore cleanup failure and the original exception takes precedence
+                    }
+                }
+
+                throw $e;
+            } finally {
+                if ($state->activeTx !== null) {
+                    $state->activeTx->release();
+                    $state->activeTx = null;
+                }
+            }
+        });
+
+        $fiberPromise->onCancel(function () use ($state): void {
+            $state->isCancelled = true;
+
+            if ($state->innerWorkPromise !== null && ! $state->innerWorkPromise->isSettled()) {
+                $state->innerWorkPromise->cancel();
+            }
+
+            if ($state->activeTx !== null && $state->activeTx->isActive()) {
+                $state->activeTx->forceCancelCurrentQuery();
+            }
+        });
+
+        Promise::forwardCancellation($promise, $fiberPromise);
+
+        if ($fiberPromise !== null) {
+            $fiberPromise->then(
+                $promise->resolve(...),
+                $promise->reject(...)
+            );
+        }
     }
 
     /**

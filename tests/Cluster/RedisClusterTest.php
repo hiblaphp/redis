@@ -6,7 +6,9 @@ namespace Tests\Client;
 
 use Hibla\Promise\Promise;
 use Hibla\Redis\Exceptions\RedisException;
+use Hibla\Redis\Exceptions\TransactionException;
 use Hibla\Redis\Interfaces\PipelineInterface;
+use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\RedisCluster;
 
 use function Hibla\await;
@@ -172,11 +174,11 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
         try {
             $results = await($cluster->pipeline(function (PipelineInterface $pipe) {
                 $pipe->set('pipe_cluster_1', 'val1')
-                     ->set('pipe_cluster_2', 'val2')
-                     ->set('pipe_cluster_3', 'val3')
-                     ->get('pipe_cluster_1')
-                     ->get('pipe_cluster_2')
-                     ->get('pipe_cluster_3')
+                    ->set('pipe_cluster_2', 'val2')
+                    ->set('pipe_cluster_3', 'val3')
+                    ->get('pipe_cluster_1')
+                    ->get('pipe_cluster_2')
+                    ->get('pipe_cluster_3')
                 ;
             }));
 
@@ -199,9 +201,9 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
         try {
             $results = await($cluster->atomic(function (PipelineInterface $pipe) {
                 $pipe->set('{groupA}:k1', 'val1')
-                     ->set('{groupA}:k2', 'val2')
-                     ->get('{groupA}:k1')
-                     ->ping('atomic_ping')
+                    ->set('{groupA}:k2', 'val2')
+                    ->get('{groupA}:k1')
+                    ->ping('atomic_ping')
                 ;
             }));
 
@@ -222,11 +224,11 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
         try {
             $promise = $cluster->atomic(function (PipelineInterface $pipe) {
                 $pipe->set('cross_slot_1', 'val1')
-                     ->set('cross_slot_2', 'val2')
+                    ->set('cross_slot_2', 'val2')
                 ;
             });
 
-            expect(fn () => await($promise))->toThrow(
+            expect(fn() => await($promise))->toThrow(
                 RedisException::class,
                 'Cross-slot transaction attempted'
             );
@@ -241,10 +243,8 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
         $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
 
         try {
-            $pipeRes = await($cluster->pipeline(function (): void {
-            }));
-            $atomicRes = await($cluster->atomic(function (): void {
-            }));
+            $pipeRes = await($cluster->pipeline(function (): void {}));
+            $atomicRes = await($cluster->atomic(function (): void {}));
 
             expect($pipeRes)->toBe([])
                 ->and($atomicRes)->toBe([])
@@ -263,12 +263,12 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
 
             $results = await($cluster->pipeline(function (PipelineInterface $pipe) use ($k1, $k2) {
                 $pipe->ping('p1')
-                     ->set($k1, 'v1')
-                     ->ping('p2')
-                     ->set($k2, 'v2')
-                     ->get($k1)
-                     ->ping('p3')
-                     ->get($k2)
+                    ->set($k1, 'v1')
+                    ->ping('p2')
+                    ->set($k2, 'v2')
+                    ->get($k1)
+                    ->ping('p3')
+                    ->get($k2)
                 ;
             }));
 
@@ -295,11 +295,11 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
 
             $promise = $cluster->pipeline(function (PipelineInterface $pipe) use ($stringKey) {
                 $pipe->set('valid_key', 'val')
-                     ->hgetall($stringKey)
+                    ->hgetall($stringKey)
                 ;
             });
 
-            expect(fn () => await($promise))->toThrow(
+            expect(fn() => await($promise))->toThrow(
                 RedisException::class,
                 'WRONGTYPE'
             );
@@ -316,10 +316,10 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
 
             $results = await($cluster->atomic(function (PipelineInterface $pipe) use ($tag) {
                 $pipe->ping('start')
-                     ->set("{{$tag}}:k1", 'v1')
-                     ->ping('middle')
-                     ->get("{{$tag}}:k1")
-                     ->ping('end')
+                    ->set("{{$tag}}:k1", 'v1')
+                    ->ping('middle')
+                    ->get("{{$tag}}:k1")
+                    ->ping('end')
                 ;
             }));
 
@@ -377,5 +377,153 @@ describe('RedisCluster Real Server Integration & Edge Cases', function (): void 
         expect(await($cluster->get('shutdown_test_key')))->toBe('val');
 
         await($cluster->closeAsync());
+    });
+
+    it('automatically executes MULTI block inside transaction if exec() is omitted', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $tag = 'tx_auto_' . uniqid();
+
+            $results = await($cluster->transaction(function (RedisTransactionInterface $tx) use ($tag) {
+                await($tx->multi());
+                await($tx->set("{{$tag}}:k1", 'val1'));
+                await($tx->set("{{$tag}}:k2", 'val2'));
+            }));
+
+            expect($results)->toBe(['OK', 'OK'])
+                ->and(await($cluster->get("{{$tag}}:k1")))->toBe('val1')
+                ->and(await($cluster->get("{{$tag}}:k2")))->toBe('val2');
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('supports explicit exec() inside transaction block', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $tag = 'tx_explicit_' . uniqid();
+
+            $results = await($cluster->transaction(function (RedisTransactionInterface $tx) use ($tag) {
+                await($tx->multi());
+                await($tx->set("{{$tag}}:k1", 'hello'));
+                await($tx->get("{{$tag}}:k1"));
+
+                return await($tx->exec());
+            }));
+
+            expect($results)->toBe(['OK', 'hello']);
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('allows explicit discard() to abort transaction', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $tag = 'tx_discard_' . uniqid();
+
+            await($cluster->transaction(function (RedisTransactionInterface $tx) use ($tag) {
+                await($tx->multi());
+                await($tx->set("{{$tag}}:k1", 'should_not_exist'));
+
+                await($tx->discard());
+            }));
+
+            expect(await($cluster->get("{{$tag}}:k1")))->toBeNull();
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('executes transaction conditionally using WATCH when key is untouched', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $key = '{watch_clean_tag}:balance_' . uniqid();
+            await($cluster->set($key, '100'));
+
+            $results = await($cluster->transaction(function (RedisTransactionInterface $tx) use ($key) {
+                await($tx->watch($key));
+
+                $val = (int) await($tx->get($key));
+
+                await($tx->multi());
+                await($tx->set($key, (string) ($val + 50)));
+
+                return await($tx->exec());
+            }));
+
+            expect($results)->toBe(['OK'])
+                ->and(await($cluster->get($key)))->toBe('150');
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('returns null from exec() if a watched key is modified by another client', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+        $otherClient = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $key = '{watch_conflict_tag}:balance_' . uniqid();
+            await($cluster->set($key, '100'));
+
+            $results = await($cluster->transaction(function (RedisTransactionInterface $tx) use ($key, $otherClient) {
+                await($tx->watch($key));
+
+                // Another client modifies the key agin
+                await($otherClient->set($key, '999'));
+
+                await($tx->multi());
+                await($tx->set($key, '200'));
+
+                return await($tx->exec());
+            }));
+
+            expect($results)->toBeNull()
+                ->and(await($cluster->get($key)))->toBe('999');
+        } finally {
+            $cluster->close();
+            $otherClient->close();
+        }
+    });
+
+    it('rejects cross-slot commands inside a transaction', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $promise = $cluster->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->set('slot_a_key', 'val'));
+
+                await($tx->get('slot_b_key'));
+            });
+
+            expect(fn() => await($promise))->toThrow(
+                TransactionException::class,
+                'Cross-slot transaction attempted'
+            );
+        } finally {
+            $cluster->close();
+        }
+    });
+
+    it('rejects cross-slot keys directly inside WATCH', function (): void {
+        $cluster = new RedisCluster(getClusterSeedUris(), getClusterOptions());
+
+        try {
+            $promise = $cluster->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->watch('slot_a_key', 'slot_b_key'));
+            });
+
+            expect(fn() => await($promise))->toThrow(
+                TransactionException::class,
+                'Cross-slot transaction attempted in WATCH'
+            );
+        } finally {
+            $cluster->close();
+        }
     });
 });
